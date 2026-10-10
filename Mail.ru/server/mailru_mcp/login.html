@@ -1,0 +1,20 @@
+<!doctype html>
+<html lang="ru">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>@Mail — Подключить почту</title><link rel="stylesheet" href="/login.css"><script src="/login.js" defer></script></head>
+<body>
+<main class="mail-window" aria-label="Подключение почты @mail">
+  <header class="titlebar"><div class="brand"><span>Почта@mail.ru</span></div><div class="window-actions"><button type="button" id="minimize" aria-label="Свернуть"><svg viewBox="0 0 24 24"><path d="M5 12h14"/></svg></button><button type="button" id="maximize" aria-label="Развернуть"><svg viewBox="0 0 24 24"><rect x="5" y="5" width="14" height="14" rx="2"/></svg></button><a href="/cancel?nonce=__NONCE__" aria-label="Закрыть"><svg viewBox="0 0 24 24"><path d="m6 6 12 12M18 6 6 18"/></svg></a></div></header>
+  <div class="content">
+    <div class="intro"><img class="mail-icon" src="/login-icon.png" alt=""><div><h1>Подключение почтового ящика Mail.ru</h1><p>Добавьте ящик для чтения и отправки писем через плагин @mail</p></div></div>
+    __ERROR__
+    <form method="post" action="/authorize" id="login-form">
+      <input type="hidden" name="nonce" value="__NONCE__">
+      <div class="field"><label for="email">Email или логин</label><input id="email" name="email" type="text" inputmode="email" placeholder="example@mail.ru" required autocomplete="username" spellcheck="false" autocapitalize="none" autofocus></div>
+      <div class="field password-field"><label for="app-password">Пароль для внешнего приложения</label><div class="password-wrap"><input id="app-password" name="app_password" type="password" required autocomplete="current-password" placeholder="•••••••••••"><button type="button" class="reveal" id="reveal" aria-label="Показать пароль" aria-pressed="false"><svg viewBox="0 0 28 28" aria-hidden="true"><path d="M2 14s4.5-8 12-8 12 8 12 8-4.5 8-12 8S2 14 2 14Z"/><circle cx="14" cy="14" r="4"/></svg></button></div></div>
+      <aside class="notice"><span class="info-icon">i</span><p>Для подключения рекомендуется использовать специальный пароль<br class="desktop-break"> для внешнего приложения, а не основной пароль от аккаунта.</p></aside>
+      <div class="submit-row"><button type="submit" class="connect">Подключить</button><a class="cancel" href="/cancel?nonce=__NONCE__">Отмена</a><a class="help" href="https://help.mail.ru/mail/security/protection/external/" target="_blank" rel="noopener noreferrer">Возникли проблемы со входом?</a></div>
+    </form>
+    <footer class="instructions"><span class="document-icon"><svg viewBox="0 0 32 32" aria-hidden="true"><path d="M9 4h10l6 6v17a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2Z"/><path d="M18 4v7h7M12 16h8M12 21h5"/></svg></span><div><strong>Как создать пароль для внешнего приложения:</strong><p>Настройки Mail.ru → Безопасность → Пароли для внешних приложений</p><a href="https://help.mail.ru/mail/security/protection/external/" target="_blank" rel="noopener noreferrer">Открыть инструкцию <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M11 3h6v6M17 3l-9 9M8 5H4a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1v-4"/></svg></a></div></footer>
+  </div>
+</main>
+</body></html>

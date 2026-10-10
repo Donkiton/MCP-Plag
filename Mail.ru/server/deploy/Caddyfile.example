@@ -1,0 +1,5 @@
+# Add only the site block into your EXISTING Caddyfile, do not start a
+# competing reverse proxy when @Yandex already owns ports 80/443.
+mail-mcp.example.com {
+    reverse_proxy 127.0.0.1:8765
+}

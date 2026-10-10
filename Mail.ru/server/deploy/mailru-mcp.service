@@ -1,0 +1,41 @@
+[Unit]
+Description=Private Mail.ru MCP server
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=mailrumcp
+Group=mailrumcp
+WorkingDirectory=/opt/mailru-mcp
+EnvironmentFile=/etc/mailru-mcp.env
+Environment=DB_PATH=/var/lib/mailru-mcp/state.sqlite3
+Environment=PYTHONNOUSERSITE=1
+Environment=PYTHONDONTWRITEBYTECODE=1
+ExecStart=/opt/mailru-mcp/venv/bin/python -m mailru_mcp.server
+StateDirectory=mailru-mcp
+StateDirectoryMode=0700
+UMask=0077
+Restart=on-failure
+RestartSec=5
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/mailru-mcp
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+CapabilityBoundingSet=
+MemoryHigh=128M
+MemoryMax=192M
+CPUQuota=30%
+TasksMax=16
+LimitNOFILE=128
+LogRateLimitIntervalSec=30s
+LogRateLimitBurst=20
+
+[Install]
+WantedBy=multi-user.target

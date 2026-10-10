@@ -1,0 +1,31 @@
+# Credentials, private keys and runtime state
+.env
+.env.*
+!.env.example
+*.env
+*.key
+*.pem
+*.p12
+*.pfx
+id_rsa*
+id_ed25519*
+*credentials*.json
+*token*.json
+*.db
+*.db-*
+*.sqlite*
+*.log
+*.bak
+*.backup
+
+# Generated caches and environments
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+.coverage
+htmlcov/
+node_modules/
+.DS_Store
+Thumbs.db
