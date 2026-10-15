@@ -7,16 +7,12 @@
   "interface": {
     "capabilities": [],
     "category": "Other",
-    "composerIcon": "./assets/composer-icon.png",
-    "composerIconDark": "./assets/composer-icon-dark.png",
     "defaultPrompt": null,
     "developerName": "App developer",
-    "displayName": "@Mail",
-    "logo": "./assets/logo.png",
-    "logoDark": "./assets/logo-dark.png",
+    "displayName": "Mail",
     "longDescription": "\u0423\u043f\u0440\u0430\u0432\u043b\u0435\u043d\u0438\u0435 \u043f\u043e\u0447\u0442\u043e\u0439 Mail.ru",
     "shortDescription": "\u0423\u043f\u0440\u0430\u0432\u043b\u0435\u043d\u0438\u0435 \u043f\u043e\u0447\u0442\u043e\u0439 Mail.ru"
   },
-  "name": "dev-6aca00f406d4819183ae5ddd3f249497",
-  "version": "1.0.10"
+  "name": "dev-6acf78aebe5481918fdac47ce0b7e938",
+  "version": "1.0.0"
 }

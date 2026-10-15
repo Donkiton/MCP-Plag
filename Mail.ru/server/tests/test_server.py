@@ -21,7 +21,7 @@ from mailru_mcp import server, mailbox
 class DummyMailbox:
     send_count=0
     def __init__(self): pass
-    def send(self,to,subject,body,cc=''):
+    def send(self,to,subject,body,cc='',bcc='',html_body='',attachments=None):
         DummyMailbox.send_count += 1
         return {'status':'sent','to':to,'subject':subject}
     def read(self, folder, uid): return {'folder':folder,'uid':uid,'subject':'Test'}
@@ -45,7 +45,12 @@ class ServerIntegrationTests(unittest.TestCase):
         payload=None if obj is None else (obj if isinstance(obj,str) else json.dumps(obj))
         headers=dict(headers or {})
         if hasattr(self,'cookie'): headers.setdefault('Cookie',self.cookie)
-        conn.request(method,path,body=payload,headers=headers)
+        # Send headers and body together so early 401/403 responses do not race
+        # a second send() on Windows when the server closes the connection.
+        chunks=[]
+        with patch.object(conn,'send',side_effect=chunks.append):
+            conn.request(method,path,body=payload,headers=headers)
+        conn.send(b''.join(chunks))
         r=conn.getresponse(); raw=r.read(); result=(r.status,r.getheaders(),raw)
         if dict(r.getheaders()).get('Set-Cookie'): self.cookie=dict(r.getheaders())['Set-Cookie'].split(';')[0]
         conn.close(); return result
@@ -86,10 +91,10 @@ class ServerIntegrationTests(unittest.TestCase):
         self.assertNotIn('icons',json.loads(raw)['result']['serverInfo'])
         status,_,raw=self.call('POST','/mcp',{'jsonrpc':'2.0','id':1,'method':'initialize','params':{'protocolVersion':'2025-11-25'}},headers)
         self.assertEqual(status,200)
-        self.assertEqual(json.loads(raw)['result']['serverInfo']['icons'],[{'src':server.BASE_URL+'/icon.png','mimeType':'image/png','sizes':['512x512']}])
+        self.assertEqual(json.loads(raw)['result']['serverInfo']['icons'],[{'src':server.BASE_URL+'/icon.png?v=58e1151c20b3','mimeType':'image/png','sizes':['512x512']}])
         status,_,raw=self.call('POST','/mcp',{'jsonrpc':'2.0','id':2,'method':'tools/list'},headers)
         self.assertEqual(status,200)
-        self.assertEqual(len(json.loads(raw)['result']['tools']),20)
+        self.assertEqual(len(json.loads(raw)['result']['tools']),31)
         self.assertEqual(self.call('POST','/mcp',{'jsonrpc':'2.0','id':3,'method':'tools/list'}, {'Authorization':'Bearer wrong'})[0],401)
         refresh=token['refresh_token']
         status,_,raw=self.call('POST','/token','grant_type=refresh_token&client_id='+client+'&refresh_token='+refresh+'&resource='+server.RESOURCE,

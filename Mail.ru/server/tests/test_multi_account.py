@@ -18,7 +18,7 @@ class AccountMailbox:
         return self
     def logout(self): pass
     def recent(self,folder,limit,**kwargs): return {'items':[{'mailbox':self.username}]} if kwargs.get('paged') else [{'mailbox':self.username}]
-    def send(self,to,subject,body,cc=''):
+    def send(self,to,subject,body,cc='',bcc='',html_body='',attachments=None):
         self.sent.append(self.username)
         return {'status':'sent','mailbox':self.username}
     def message_identity(self,folder,uid):

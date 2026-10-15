@@ -132,7 +132,11 @@ def _encode_folder(name):
     return wire
 
 
-class Mailbox:
+from .compose import ComposeMixin
+from .message_ops import MessageOpsMixin
+
+
+class Mailbox(ComposeMixin,MessageOpsMixin):
     def __init__(self, username=None, password=None):
         self.username = username if username is not None else os.environ['MAILRU_EMAIL']
         self.password = password if password is not None else os.environ['MAILRU_APP_PASSWORD']
@@ -172,9 +176,17 @@ class Mailbox:
 
     @staticmethod
     def _uid_validity(conn):
-        values=conn.response('UIDVALIDITY')[1] or [b'']
-        value=values[0].decode('ascii')
+        # imaplib.response consumes the untagged response. Keep the last value
+        # for this SELECT, but accept any new server response and clear the cache
+        # before each subsequent SELECT so another folder can never inherit it.
+        values=conn.response('UIDVALIDITY')[1] or []
+        observed=next((item for item in values if item is not None),None)
+        if observed is not None:
+            value=observed.decode('ascii') if isinstance(observed,bytes) else str(observed)
+        else:
+            value=getattr(conn,'_mailru_uid_validity','') or ''
         if not re.fullmatch(r'[1-9][0-9]*',value): raise MailError('UIDVALIDITY unavailable; refresh folder')
+        conn._mailru_uid_validity=value
         return value
 
     def _search_cursor(self,query,folder,state=None,cursor=''):
@@ -380,6 +392,7 @@ class Mailbox:
 
     @staticmethod
     def _select(conn, folder, readonly=True):
+        conn._mailru_uid_validity=''
         typ, _ = conn.select(_folder_arg(folder), readonly=readonly)
         if typ != 'OK': raise MailError('Folder inaccessible')
 
@@ -482,7 +495,7 @@ class Mailbox:
         def run(c):
             self._select(c,folder)
             headers=self._fetch(c,uid,headers_only=True)
-            return {'uid_validity':str((c.response('UIDVALIDITY')[1] or [b''])[0].decode('ascii')),
+            return {'uid_validity':self._uid_validity(c),
                     'message_fingerprint':hashlib.sha256(headers.as_bytes()).hexdigest()}
         return self._with_imap(run)
 
@@ -497,7 +510,7 @@ class Mailbox:
                     files.append({'index':i,'filename':_decode(p.get_filename() or 'attachment'),
                                   'content_type':p.get_content_type(),'size':len(blob)})
             return {**self._meta(folder,uid,m), 'body':_preview(m), 'attachments':files,
-                    'uid_validity':str((c.response('UIDVALIDITY')[1] or [b''])[0].decode('ascii')),
+                    'uid_validity':self._uid_validity(c),
                     'message_fingerprint':hashlib.sha256(m.as_bytes()).hexdigest(),
                     'body_truncated_at':12000}
         return self._with_imap(run)
@@ -538,27 +551,11 @@ class Mailbox:
             return result
         return self._with_imap(run)
 
-    def create_draft(self, to, subject, body, cc=''):
-        msg,_ = _new_message(to,subject,body,cc,sender=self.username)
-        def run(c):
-            folders=self._folders(c)
-            drafts=next((x['folder'] for x in folders if '\\Drafts' in x['flags']), None)
-            if not drafts:
-                drafts=next((x['folder'] for x in folders if any(k in x['folder'].casefold() for k in ('draft','чернов'))),None)
-            if not drafts: raise MailError('Drafts folder not found; refusing to save elsewhere')
-            typ,_=c.append(_folder_arg(drafts),'(\\Draft)',None,msg.as_bytes(policy=email.policy.SMTP))
-            if typ!='OK': raise MailError('IMAP APPEND failed')
-            return {'status':'draft_created','folder':drafts,'to':msg['To'],'subject':subject}
-        return self._with_imap(run)
+    def create_draft(self,to,subject,body,cc='',bcc='',html_body='',attachments=None):
+        return self.compose_create_draft(to,subject,body,cc,bcc,html_body,attachments)
 
-    def send(self,to,subject,body,cc=''):
-        msg,recipients=_new_message(to,subject,body,cc,sender=self.username)
-        with smtplib.SMTP_SSL('smtp.mail.ru',465,context=self.ssl_context,timeout=20) as s:
-            s.login(self.username,self.password)
-            refused=s.send_message(msg,from_addr=self.username,to_addrs=recipients)
-        return {'status':'partially_sent' if refused else 'sent','accepted_recipients':[r for r in recipients if r not in refused],
-                'refused_recipients':list(refused),'to':msg['To'],'cc':cc,'subject':subject,
-                'note':'Do not automatically retry; SMTP may have accepted some recipients.'}
+    def send(self,to,subject,body,cc='',bcc='',html_body='',attachments=None):
+        return self.compose_send(to,subject,body,cc,bcc,html_body,attachments)
 
     @staticmethod
     def _move(c, folder, uid, target,expected_identity=None):
@@ -588,7 +585,7 @@ class Mailbox:
     @staticmethod
     def _check_identity(c,msg,expected):
         if expected is None: return
-        actual={'uid_validity':str((c.response('UIDVALIDITY')[1] or [b''])[0].decode('ascii')),
+        actual={'uid_validity':Mailbox._uid_validity(c),
                 'message_fingerprint':hashlib.sha256(msg.as_bytes()).hexdigest()}
         if not actual['uid_validity'] or actual!=expected: raise MailError('Message or mailbox identity changed; prepare a new action')
 
