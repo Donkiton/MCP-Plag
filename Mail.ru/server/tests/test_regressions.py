@@ -126,7 +126,7 @@ class RegressionTests(base.ServerIntegrationTests):
         with patch.object(server,'Mailbox',DummyMailbox),patch.object(DummyMailbox,'send',return_value={'status':'sent'}) as send:
             result=self.rpc(token['access_token'],'prepare_send',args)
         self.assertFalse(result['isError'])
-        send.assert_called_once_with(args['to'],args['subject'],args['body'],args['cc'])
+        send.assert_called_once_with(args['to'],args['subject'],args['body'],args['cc'],bcc='',html_body='',attachments=None)
 
     def test_malformed_arguments_and_profile(self):
         _,token=self.make_oauth()
@@ -295,12 +295,15 @@ class BackendRegressionTests(unittest.TestCase):
         with self.assertRaises(mailbox.MailError): mailbox.Mailbox._check_identity(conn,msg,{'uid_validity':'1','message_fingerprint':hashlib.sha256(msg.as_bytes()).hexdigest()})
 
     def test_partial_smtp_delivery_not_reported_as_complete(self):
-        with patch.object(mailbox.smtplib,'SMTP_SSL') as smtp:
-            smtp.return_value.__enter__.return_value.send_message.return_value={'copy@example.org':(550,b'Rejected')}
+        with patch('mailru_mcp.compose.smtplib.SMTP_SSL') as smtp, \
+                patch.object(mailbox.Mailbox,'_with_imap',side_effect=mailbox.MailError('Sent unavailable')):
+            smtp.return_value.send_message.return_value={'copy@example.org':(550,b'Rejected')}
             result=mailbox.Mailbox().send('t@example.org','s','b','copy@example.org')
         self.assertEqual(result['status'],'partially_sent')
         self.assertEqual(result['accepted_recipients'],['t@example.org'])
         self.assertEqual(result['refused_recipients'],['copy@example.org'])
+        self.assertEqual(result['sent_copy_status'],'failed')
+        self.assertTrue(result['do_not_retry'])
 
 
 if __name__=='__main__': unittest.main()

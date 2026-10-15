@@ -5,6 +5,7 @@ import json
 import struct
 import zipfile
 import zlib
+from build_releases import RELEASES, source_files
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -54,18 +55,17 @@ def png_size(path):
 
 def main():
     plugin = ROOT / "plugin"
-    canonical = json.loads((plugin / "plugin.json").read_text("utf-8"))
     legacy = json.loads((plugin / ".codex-plugin/plugin.json").read_text("utf-8"))
-    assert canonical["version"] == legacy["version"] == "1.0.10"
-    assert canonical["name"] == legacy["name"]
-    extension = canonical["extensions"]["com.openai"]
-    assert extension["interface"] == legacy["interface"]
-    assert extension["apps"] == legacy["apps"]
-    apps = json.loads(contained_file(plugin, extension["apps"]).read_text("utf-8"))
-    assert apps["apps"][canonical["name"]]["id"].startswith("asdk_app_")
-    for field in ("logo", "logoDark", "composerIcon", "composerIconDark"):
-        path = contained_file(plugin, extension["interface"][field])
-        assert png_size(path) == (256, 256), field
+    assert legacy["version"] == "1.0.0"
+    assert legacy["name"] == "dev-6acf78aebe5481918fdac47ce0b7e938"
+    assert legacy["interface"]["displayName"] == "Mail"
+    assert not (plugin / "plugin.json").exists(), "Keep the new App's actual package layout"
+    apps = json.loads(contained_file(plugin, legacy["apps"]).read_text("utf-8"))
+    assert apps["apps"] == {legacy["name"]: {"id": "asdk_app_6acf78aebe5481918fdac47ce0b7e938"}}
+    assert {p.relative_to(plugin).as_posix() for p in source_files(plugin)} == {
+        ".app.json", ".codex-plugin/plugin.json"}, "Unexpected files in the current Mail package"
+    for size in (64, 128, 256):
+        assert png_size(ROOT / f"app-assets/mail-{size}.png") == (size, size)
     package = ROOT / "server/mailru_mcp"
     assert png_size(package / "icon.png") == (512, 512)
     png_size(package / "login-icon.png")
@@ -79,12 +79,16 @@ def main():
     assert "roboto.ttf" in css
     for name in ("login", "roboto", "cancel", "icon"):
         assert name in nginx, name
-    assert "VERSION='0.3.21'" in (package / "server.py").read_text("utf-8")
-    for archive, directory in (("mail-plugin-1.0.10.zip", plugin), ("mailru-mcp-0.3.21.zip", ROOT / "server")):
+    assert "VERSION='0.4.0'" in (package / "server.py").read_text("utf-8")
+    assert hashlib.sha256((package / "icon.png").read_bytes()).hexdigest() == "58e1151c20b3f3ea5e8a4a31fd0ea9c543904b462ad12d5e367a16e81a674740"
+    for name in ("nginx-vdsina.conf", "nginx-site.example.conf"):
+        assert "client_max_body_size 12m;" in (ROOT / "server/deploy" / name).read_text("utf-8"), name
+    assert {p.name for p in (ROOT / "releases").glob("*.zip")} == {name for name, _ in RELEASES}, "Only current releases belong in this snapshot"
+    for archive, directory in RELEASES:
         with zipfile.ZipFile(ROOT / "releases" / archive) as bundle:
             assert bundle.testzip() is None, archive
-            expected = {p.relative_to(directory).as_posix(): p for p in directory.rglob("*") if p.is_file() and "__pycache__" not in p.parts and p.suffix != ".pyc"}
-            assert set(bundle.namelist()) == set(expected), archive
+            expected = {p.relative_to(directory).as_posix(): p for p in source_files(directory)}
+            assert len(bundle.namelist()) == len(expected) and set(bundle.namelist()) == set(expected), archive
             for name, path in expected.items():
                 assert bundle.read(name) == path.read_bytes(), name
     tracked = set()
@@ -93,9 +97,9 @@ def main():
         path = contained_file(ROOT, relative)
         assert hashlib.sha256(path.read_bytes()).hexdigest() == digest, relative
         tracked.add(relative)
-    expected = {p.relative_to(ROOT).as_posix() for p in ROOT.rglob("*") if p.is_file() and p.name != "SHA256SUMS" and "__pycache__" not in p.parts and p.suffix != ".pyc"}
+    expected = {p.relative_to(ROOT).as_posix() for p in source_files(ROOT) if p.name != "SHA256SUMS"}
     assert tracked == expected, "Checksum manifest is incomplete"
-    print(f"OK: plugin 1.0.10, server 0.3.21, six PNG icons, two archives, {len(tracked)} checksums")
+    print(f"OK: Mail 1.0.0, server 0.4.0, five PNG icons, two archives, {len(tracked)} checksums")
 
 
 if __name__ == "__main__":
