@@ -1,0 +1,40 @@
+{
+  "plugin_id": "plugin_asdk_app_6adde97bd2a88191986f132cf6d4c496",
+  "observed_release_id": "pluginrel_6addec0241e88191bafebcc6fd5d7943",
+  "scope": "USER",
+  "contents": {
+    ".app.json": "{\n  \"apps\": {\n    \"dev-6adde97bd2a88191986f132cf6d4c496\": {\n      \"id\": \"asdk_app_6adde97bd2a88191986f132cf6d4c496\"\n    }\n  }\n}",
+    ".codex-plugin/plugin.json": "{\n  \"interface\": {\n    \"capabilities\": [],\n    \"category\": \"Other\",\n    \"defaultPrompt\": null,\n    \"developerName\": \"App developer\",\n    \"displayName\": \"tg\",\n    \"longDescription\": \"\\u041b\\u0438\\u0447\\u043d\\u044b\\u0439 Telegram: \\u043f\\u0435\\u0440\\u0435\\u043f\\u0438\\u0441\\u043a\\u0438, \\u043f\\u043e\\u0438\\u0441\\u043a, \\u0441\\u043e\\u043e\\u0431\\u0449\\u0435\\u043d\\u0438\\u044f \\u0438 \\u043d\\u0435\\u0441\\u043a\\u043e\\u043b\\u044c\\u043a\\u043e \\u0438\\u043c\\u0435\\u043d\\u043e\\u0432\\u0430\\u043d\\u043d\\u044b\\u0445 \\u0430\\u043a\\u043a\\u0430\\u0443\\u043d\\u0442\\u043e\\u0432.\",\n    \"shortDescription\": \"\\u041b\\u0438\\u0447\\u043d\\u044b\\u0439 Telegram: \\u043f\\u0435\\u0440\\u0435\\u043f\\u0438\\u0441\\u043a\\u0438, \\u043f\\u043e\\u0438\\u0441\\u043a, \\u0441\\u043e\\u043e\\u0431\\u0449\\u0435\\u043d\\u0438\\u044f \\u0438 \\u043d\\u0435\\u0441\\u043a\\u043e\\u043b\\u044c\\u043a\\u043e \\u0438\\u043c\\u0435\\u043d\\u043e\\u0432\\u0430\\u043d\\u043d\\u044b\\u0445 \\u0430\\u043a\\u043a\\u0430\\u0443\\u043d\\u0442\\u043e\\u0432.\"\n  },\n  \"apps\": \"./.app.json\",\n  \"name\": \"dev-6adde97bd2a88191986f132cf6d4c496\",\n  \"version\": \"1.0.1\",\n  \"description\": \"\\u041b\\u0438\\u0447\\u043d\\u044b\\u0439 Telegram: \\u043f\\u0435\\u0440\\u0435\\u043f\\u0438\\u0441\\u043a\\u0438, \\u043f\\u043e\\u0438\\u0441\\u043a, \\u0441\\u043e\\u043e\\u0431\\u0449\\u0435\\u043d\\u0438\\u044f \\u0438 \\u043d\\u0435\\u0441\\u043a\\u043e\\u043b\\u044c\\u043a\\u043e \\u0438\\u043c\\u0435\\u043d\\u043e\\u0432\\u0430\\u043d\\u043d\\u044b\\u0445 \\u0430\\u043a\\u043a\\u0430\\u0443\\u043d\\u0442\\u043e\\u0432.\",\n  \"author\": {\n    \"name\": \"App developer\"\n  },\n  \"keywords\": [],\n  \"skills\": \"./skills\"\n}\n",
+    "plugin.json": "{\n  \"$schema\": \"https://agent-plugins.org/schemas/1.0.0/plugin.schema.json\",\n  \"name\": \"dev-6adde97bd2a88191986f132cf6d4c496\",\n  \"version\": \"1.0.1\",\n  \"description\": \"Личный Telegram: переписки, поиск, сообщения и несколько именованных аккаунтов.\",\n  \"author\": {\n    \"name\": \"App developer\"\n  },\n  \"extensions\": {\n    \"com.openai\": {\n      \"interface\": {\n        \"capabilities\": [],\n        \"category\": \"Other\",\n        \"defaultPrompt\": null,\n        \"developerName\": \"App developer\",\n        \"displayName\": \"tg\",\n        \"longDescription\": \"Личный Telegram: переписки, поиск, сообщения и несколько именованных аккаунтов.\",\n        \"shortDescription\": \"Личный Telegram: переписки, поиск, сообщения и несколько именованных аккаунтов.\"\n      },\n      \"apps\": \"./.app.json\"\n    }\n  }\n}\n"
+  },
+  "source_inventory": [
+    {
+      "path": ".app.json",
+      "size_bytes": 127
+    },
+    {
+      "path": ".codex-plugin/plugin.json",
+      "size_bytes": 1547
+    },
+    {
+      "path": "plugin.json",
+      "size_bytes": 960
+    },
+    {
+      "path": "skills/tg-workflow/SKILL.md",
+      "size_bytes": 4948
+    },
+    {
+      "path": "skills/tg-workflow/agents/openai.yaml",
+      "size_bytes": 437
+    },
+    {
+      "path": "skills/tg-workflow/assets/tg-skill-large.png",
+      "size_bytes": 137619
+    },
+    {
+      "path": "skills/tg-workflow/assets/tg-skill-small.png",
+      "size_bytes": 4618
+    }
+  ]
+}

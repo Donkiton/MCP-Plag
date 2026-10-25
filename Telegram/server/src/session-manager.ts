@@ -1,0 +1,1281 @@
+import { Database } from "bun:sqlite";
+import { randomBytes } from "node:crypto";
+import { TelegramService } from "@overpod/mcp-telegram/service";
+import { isAuthErrorMessage } from "./auth-errors.js";
+import { config } from "./config.js";
+import { decryptSecret, encryptionEnabled, encryptSecret, hashToken, isEncrypted } from "./crypto.js";
+import { isDeadlineError, withDeadline } from "./deadline.js";
+import { logUser } from "./logger.js";
+
+interface UserSession {
+  telegram: TelegramService;
+  connectedAt: Date;
+  lastActivity: Date;
+}
+
+export interface TelegramAccount {
+  accountId: number;
+  ownerUserId: string;
+  telegramUserId: string;
+  label: string | null;
+  addedAt: string;
+  lastUsedAt: string;
+}
+
+export interface AccountSummary {
+  /** 0 = primary (lives in user_sessions); >0 = secondary (in telegram_accounts). */
+  accountId: number;
+  /** Telegram username or numeric id — same shape that the primary user_id uses. */
+  telegramUserId: string;
+  label: string | null;
+  isPrimary: boolean;
+  isActive: boolean;
+  addedAt: string | null;
+  lastUsedAt: string | null;
+}
+
+/** Pool key for non-primary accounts. Two accounts of the same owner must NOT collide
+ *  with each other or with the primary slot (which keys by raw `ownerUserId`). */
+const secondaryKey = (ownerUserId: string, accountId: number): string => `${ownerUserId}#${accountId}`;
+
+export class SessionManager {
+  private sessions = new Map<string, UserSession>();
+  /**
+   * Per-userId async mutex. Every public method that mutates `sessions` for a userId
+   * (create / replace / delete) — and every read that depends on the result of such a
+   * mutation — is queued through `withLock(userId, ...)` so concurrent calls for the SAME
+   * userId run strictly in series. Different userIds remain fully parallel.
+   *
+   * Closes three race windows:
+   *   1. Cold-start: 3 MCP clients (Claude.ai + ChatGPT + Cursor) issuing the first tool call
+   *      simultaneously after a container restart would each see `sessions.get(userId) === undefined`
+   *      and each spin up a fresh `TelegramService` against the same `session_string` →
+   *      `AUTH_KEY_DUPLICATED` from Telegram, all clients lose auth.
+   *   2. Destroy/adopt vs pending create: a `getOrCreateSession` connect that resolves AFTER a
+   *      concurrent `destroyUserSession` would leave a live, unreferenced TelegramService.
+   *   3. Adopt vs concurrent tool dispatch: `getSession` is called on every MCP tool dispatch
+   *      and must NOT hand out a TelegramService that is mid-logOut. `adoptSession` therefore
+   *      installs the new entry FIRST and tears down the old instance fire-and-forget after.
+   *
+   * `disconnectUser` is also wrapped, but its actual `disconnect()` call is fire-and-forget
+   * inside the lock so a stuck network teardown does not block the queue head for that userId.
+   *
+   * Stored value is the tail Promise of the per-user queue; resolved Promises are evicted in
+   * `withLock`'s finally block so the Map does not grow unboundedly.
+   */
+  private locks = new Map<string, Promise<void>>();
+  private db: Database;
+
+  /** Credentials are provisioned through the protected setup page after boot. */
+  private createTelegram(): TelegramService {
+    if (!Number.isSafeInteger(config.telegramApiId) || config.telegramApiId <= 0 || !config.telegramApiHash) {
+      throw new Error("Telegram API credentials are not configured. Complete the protected setup page first.");
+    }
+    return this.telegramFactory(config.telegramApiId, config.telegramApiHash);
+  }
+
+  constructor(
+    dbPath = config.databasePath,
+    /**
+     * Optional factory for `TelegramService` instances. Defaults to the real constructor.
+     * Tests inject a stub here to observe mutex behaviour without touching the network or
+     * GramJS internals — this is the ONLY supported way to substitute the Telegram client.
+     */
+    private readonly telegramFactory: (apiId: number, apiHash: string) => TelegramService = (apiId, apiHash) =>
+      new TelegramService(apiId, apiHash),
+  ) {
+    this.db = new Database(dbPath);
+    this.db.exec("PRAGMA journal_mode = WAL");
+    this.db.exec(`
+      CREATE TABLE IF NOT EXISTS user_sessions (
+        user_id TEXT PRIMARY KEY,
+        session_string TEXT NOT NULL,
+        created_at TEXT DEFAULT (datetime('now')),
+        updated_at TEXT DEFAULT (datetime('now'))
+      )
+    `);
+
+    // A primary slot is always accountId=0, so a second-resolution timestamp
+    // cannot distinguish removal + reattachment within one second. A fresh
+    // random attachment ID on INSERT prevents old private snapshots reviving.
+    const columns = this.db.prepare("PRAGMA table_info(user_sessions)").all() as { name: string }[];
+    if (!columns.some((c) => c.name === "attachment_id")) {
+      this.db.exec("ALTER TABLE user_sessions ADD COLUMN attachment_id TEXT NOT NULL DEFAULT ''");
+    }
+    if (!columns.some((c) => c.name === "label")) {
+      this.db.exec("ALTER TABLE user_sessions ADD COLUMN label TEXT");
+    }
+    this.db.exec("UPDATE user_sessions SET attachment_id = lower(hex(randomblob(16))) WHERE attachment_id = ''");
+
+    // v2.32.0 multi-account: secondary Telegram accounts attached to a primary
+    // owner_user_id. owner_user_id is the original `user_sessions.user_id` —
+    // i.e. the Telegram identity that completed the OAuth flow. Primary account
+    // is implicit (lives in user_sessions); secondary accounts live here.
+    //
+    // active_account.account_id = 0  ⇒  primary (default, backward-compatible)
+    // active_account.account_id > 0  ⇒  telegram_accounts.account_id
+    //
+    // add_tokens are short-lived capabilities issued by `accounts-add` so the
+    // owner can finish QR login on a different device. The token is the auth —
+    // anyone who opens the URL adds a Telegram account to this owner_user_id.
+    this.db.exec(`
+      CREATE TABLE IF NOT EXISTS telegram_accounts (
+        account_id INTEGER PRIMARY KEY AUTOINCREMENT,
+        owner_user_id TEXT NOT NULL,
+        telegram_user_id TEXT NOT NULL,
+        session_string TEXT NOT NULL,
+        label TEXT,
+        added_at TEXT DEFAULT (datetime('now')),
+        last_used_at TEXT DEFAULT (datetime('now')),
+        UNIQUE(owner_user_id, telegram_user_id)
+      );
+      CREATE INDEX IF NOT EXISTS idx_telegram_accounts_owner ON telegram_accounts(owner_user_id);
+
+      CREATE TABLE IF NOT EXISTS active_account (
+        owner_user_id TEXT PRIMARY KEY,
+        account_id INTEGER NOT NULL DEFAULT 0,
+        switched_at TEXT DEFAULT (datetime('now'))
+      );
+
+      CREATE TABLE IF NOT EXISTS add_account_tokens (
+        token TEXT PRIMARY KEY,
+        owner_user_id TEXT NOT NULL,
+        label TEXT,
+        expires_at INTEGER NOT NULL,
+        used INTEGER NOT NULL DEFAULT 0,
+        created_at TEXT DEFAULT (datetime('now'))
+      );
+      CREATE INDEX IF NOT EXISTS idx_add_account_tokens_expires ON add_account_tokens(expires_at);
+
+      -- Review-access tokens: let a directory reviewer reach a prepared demo
+      -- session without scanning a QR code, which they cannot do (no phone).
+      --
+      -- Deliberately NOT single-use, unlike add_account_tokens: the submission
+      -- form states the credentials are reused for ongoing quality and safety
+      -- testing, and more than one reviewer may open them over months. A
+      -- one-time token would fail on the second visit and read as 'we could not
+      -- connect'. Containment comes from the revoked flag plus a bounded
+      -- expires_at, and every use is counted so an unexpected access is visible.
+      CREATE TABLE IF NOT EXISTS review_tokens (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        token_hash TEXT NOT NULL UNIQUE,
+        user_id TEXT NOT NULL,
+        note TEXT,
+        expires_at INTEGER NOT NULL,
+        revoked INTEGER NOT NULL DEFAULT 0,
+        uses INTEGER NOT NULL DEFAULT 0,
+        last_used_at TEXT,
+        created_at TEXT DEFAULT (datetime('now'))
+      );
+      CREATE INDEX IF NOT EXISTS idx_review_tokens_expires ON review_tokens(expires_at);
+    `);
+
+    this.migrateReviewTokensToHashes();
+  }
+
+  /**
+   * Run `fn` after any in-flight operation for the same userId completes, then evict the
+   * lock entry if no further work is queued behind us.
+   *
+   * The slot stored in `this.locks` is a never-rejecting view of the chain head — that is
+   * what isolates a thrown `fn` from blocking the next caller, NOT the `prev.then` arity.
+   * Concretely: caller B reads slotA from the Map, slotA always fulfils (it's `runA.then(noop, noop)`),
+   * so `slotA.then(fnB)` always invokes fnB. No `.then(fn, fn)` rejection-arm trickery needed.
+   *
+   * The await-then-finally cleanup is microtask-tight: `this.locks.set(userId, slot)` is
+   * synchronous and reference-equal at finally time, so eviction never racially-deletes a
+   * successor's freshly-installed slot.
+   */
+  private async withLock<T>(userId: string, fn: () => Promise<T>): Promise<T> {
+    const prev = this.locks.get(userId) ?? Promise.resolve();
+    const run = prev.then(fn);
+    // Non-rejecting view of the chain head: future callers chain off this without inheriting
+    // a rejection, and we keep reference equality for the cleanup check below.
+    const slot: Promise<void> = run.then(
+      () => {},
+      () => {},
+    );
+    this.locks.set(userId, slot);
+    try {
+      return await run;
+    } finally {
+      // Only evict if nobody chained behind us in the meantime
+      if (this.locks.get(userId) === slot) {
+        this.locks.delete(userId);
+      }
+    }
+  }
+
+  async getOrCreateSession(userId: string): Promise<TelegramService> {
+    return this.withLock(userId, () => this.getOrCreateSessionImpl(userId));
+  }
+
+  private async getOrCreateSessionImpl(userId: string): Promise<TelegramService> {
+    const existing = this.sessions.get(userId);
+    if (existing) {
+      existing.lastActivity = new Date();
+      // Try to reconnect if disconnected
+      if (!existing.telegram.isConnected()) {
+        // issue #19: this await runs INSIDE the per-user lock. Unbounded, a half-open
+        // socket pinned the lock chain forever and every later call for this user queued
+        // behind a promise that never settled.
+        try {
+          await withDeadline("ensureConnected", config.telegramConnectTimeoutMs, () =>
+            existing.telegram.ensureConnected(),
+          );
+        } catch (e) {
+          if (!isDeadlineError(e)) throw e;
+          // Recover IN PLACE rather than building a second TelegramService (review
+          // finding): a replacement would race the old, still-unreferenced client for the
+          // same auth key, and Telegram answers that with AUTH_KEY_DUPLICATED — trading a
+          // wedge for a different way to be unusable. Upstream's `markUnhealthy` clears the
+          // sticky connected flag so the NEXT `ensureConnected()` runs `dropDeadClient()`
+          // (destroy the dead sender) and rebuilds from the same session string, one client
+          // throughout. That next attempt is itself bounded by the caller's deadline.
+          existing.telegram.markUnhealthy(`ensureConnected exceeded ${e.timeoutMs}ms`);
+          console.error(
+            `[sessions] ensureConnected timed out for ${logUser(userId)} — client marked unhealthy, next call rebuilds it`,
+          );
+        }
+      }
+      return existing.telegram;
+    }
+
+    const telegram = this.createTelegram();
+
+    // Try to load saved session from SQLite
+    const row = this.db.prepare("SELECT session_string FROM user_sessions WHERE user_id = ?").get(userId) as
+      | { session_string: string }
+      | undefined;
+
+    if (row?.session_string) {
+      telegram.setSessionString(decryptSecret(row.session_string));
+    }
+
+    const connected = (await this.connectBounded(telegram, userId)) === "connected";
+
+    // Only add to pool if connection succeeded — don't cache broken sessions
+    if (connected) {
+      this.sessions.set(userId, {
+        telegram,
+        connectedAt: new Date(),
+        lastActivity: new Date(),
+      });
+    } else {
+      console.log(`[sessions] getOrCreateSession: connect failed for ${logUser(userId)}, not adding to pool`);
+    }
+
+    return telegram;
+  }
+
+  /**
+   * `telegram.connect()` under a deadline.
+   *
+   * Tri-state on purpose (review finding, issue #19). "Telegram answered and rejected the
+   * session" and "Telegram did not answer in time" look identical through a boolean, and
+   * one caller — `tryReconnectSessionImpl` — DELETES the persisted `session_string` on the
+   * first. Collapsing a transient network stall into that branch would log the user out for
+   * good, which is a far worse bug than the one being fixed.
+   */
+  private async connectBounded(
+    telegram: TelegramService,
+    userId: string,
+  ): Promise<"connected" | "rejected" | "timeout"> {
+    // The in-flight promise is captured INSIDE the deadline wrapper, not before it, so the
+    // "every wire call sits inside withDeadline" guard stays true by construction rather
+    // than by exception. It is held because a connect that finishes AFTER the deadline must
+    // still be torn down — otherwise it becomes a live client nobody references, holding a
+    // second connection on the same auth key (review finding).
+    let work: Promise<boolean> | undefined;
+    try {
+      const ok = await withDeadline("connect", config.telegramConnectTimeoutMs, () => {
+        work = telegram.connect();
+        return work;
+      });
+      return ok ? "connected" : "rejected";
+    } catch (e) {
+      if (!isDeadlineError(e)) throw e;
+      console.error(`[sessions] connect timed out for ${logUser(userId)} after ${e.timeoutMs}ms`);
+      void work?.then(
+        () => telegram.disconnect().catch(() => {}),
+        () => {},
+      );
+      telegram.disconnect().catch(() => {});
+      return "timeout";
+    }
+  }
+
+  /**
+   * issue #19 — mark a user's live Telegram client as unusable after a tool-call deadline
+   * breach. Non-destructive by contract (see {@link discardPooled}): memory only.
+   *
+   * Routed through the active-account key so a user on a secondary account gets the
+   * account they are actually using rebuilt, not their primary.
+   *
+   * Deliberately fire-and-forget and lock-free: it is called from the error path of a call
+   * that just timed out, and must not itself block or throw.
+   *
+   * FENCING (review finding, issue #19): a deadline fires on the CALLER's clock, so a
+   * timeout report can arrive long after the session was already rebuilt — or after the
+   * user switched accounts. Dropping whatever is pooled "now" would then throw away a
+   * healthy client and, under a retrying agent, could do so repeatedly. `expected` pins the
+   * decision to the exact instance that timed out: if the pool has moved on, this is a
+   * no-op. Callers that genuinely cannot name the instance (connect-stage timeouts, where
+   * the hang happened before we ever got a handle) may omit it and accept the wider scope.
+   */
+  markUnhealthy(ownerUserId: string, target: { expected?: TelegramService; accountId?: number } = {}): void {
+    // The pool ENTRY always stays (review finding): evicting it made the next call construct
+    // a second TelegramService while the timed-out one was potentially still alive on the
+    // same auth key, which Telegram answers with AUTH_KEY_DUPLICATED — a different way to be
+    // unusable. Marking the existing client keeps exactly one client per user and lets
+    // upstream destroy its dead sender before reconnecting from the same session string.
+    const mark = (session: UserSession) => {
+      session.telegram.markUnhealthy("tool call exceeded its deadline");
+      console.log(
+        `[sessions] Marked ${logUser(ownerUserId)} unhealthy after tool timeout — next call revalidates the connection`,
+      );
+    };
+
+    if (target.expected) {
+      // Resolve BY IDENTITY, not by "whichever account is active now" (review finding):
+      // a user can switch accounts while a doomed call is still in flight, and keying off
+      // the current account would mark the wrong connection while leaving the broken one
+      // untouched. Scanning the owner's own pool slots finds the timed-out client wherever
+      // it lives, and finds nothing once it has been replaced — which is the stale case.
+      for (const [key, session] of this.sessions) {
+        if (key !== ownerUserId && !key.startsWith(`${ownerUserId}#`)) continue;
+        if (session.telegram !== target.expected) continue;
+        mark(session);
+        return;
+      }
+      console.log(`[sessions] Ignoring stale timeout for ${logUser(ownerUserId)} — that client is no longer pooled`);
+      return;
+    }
+
+    // No handle (connect-stage timeout): the caller passes the account that was active when
+    // the attempt STARTED, so a switch mid-flight cannot redirect the mark.
+    const accountId = target.accountId ?? this.getActiveAccountId(ownerUserId);
+    const key = accountId > 0 ? secondaryKey(ownerUserId, accountId) : ownerUserId;
+    const pooled = this.sessions.get(key);
+    if (!pooled) return;
+    mark(pooled);
+  }
+
+  /** Save a user's session string to SQLite for persistence across restarts.
+   *  Encrypted at rest via {@link encryptSecret} (passthrough when no key is set). */
+  saveSessionString(userId: string, sessionString: string): void {
+    this.db
+      .prepare(
+        `INSERT INTO user_sessions (user_id, session_string, updated_at, attachment_id)
+       VALUES (?, ?, datetime('now'), ?)
+       ON CONFLICT(user_id) DO UPDATE SET session_string = excluded.session_string, updated_at = datetime('now')`,
+      )
+      .run(userId, encryptSecret(sessionString), randomBytes(16).toString("hex"));
+  }
+
+  getSession(userId: string): TelegramService | undefined {
+    // v2.32.0 multi-account: if owner has a non-primary active account, route reads/writes
+    // through that account's TelegramService instead of the primary. Pool key for secondary
+    // accounts is `${ownerUserId}#${accountId}` so two accounts of the same owner never
+    // share a `UserSession` slot.
+    const activeId = this.getActiveAccountId(userId);
+    if (activeId > 0) {
+      const session = this.sessions.get(secondaryKey(userId, activeId));
+      if (session) {
+        session.lastActivity = new Date();
+      }
+      return session?.telegram;
+    }
+    const session = this.sessions.get(userId);
+    if (session) {
+      session.lastActivity = new Date();
+    }
+    return session?.telegram;
+  }
+
+  /**
+   * Disconnect Telegram client (stop update loop) but keep session in pool + SQLite.
+   * Used on MCP session close — no TIMEOUT spam, reconnect will reuse same auth key.
+   *
+   * Intentionally NOT serialized through `withLock`: synchronous fire-and-forget that does
+   * not mutate the pool Map (the entry stays so subsequent getOrCreateSession reuses the
+   * same auth key). Wrapping it would require making the public method async and awaiting
+   * `disconnect()`, which on a stuck connection would block all other ops on this userId.
+   */
+  /**
+   * Disconnect Telegram client (stop update loop) but keep session in pool + SQLite.
+   * Used on MCP session close — no TIMEOUT spam, reconnect will reuse same auth key.
+   *
+   * Public API stays sync (fire-and-forget) — callers in `mcp-handler.ts` do not await it.
+   * The lock-protected portion only saves the session_string; the actual `disconnect()` is
+   * launched inside the lock but not awaited, so a stuck network teardown does NOT block
+   * subsequent ops on this userId. Compared to wrapping the whole thing, this gives us
+   * Map-read serialisation against `destroyUserSession` / `adoptSession` without trading
+   * latency for safety.
+   */
+  disconnectUser(userId: string): void {
+    // Fire-and-forget the lock acquisition itself. We never await the result of
+    // disconnectUser at any callsite, and any internal logging is on the inner promise.
+    this.withLock(userId, async () => {
+      const session = this.sessions.get(userId);
+      if (!session) return;
+      // Save session string before disconnecting (in case it wasn't saved yet)
+      const ss = session.telegram.getSessionString();
+      if (ss) {
+        this.saveSessionString(userId, ss);
+      }
+      // NOT awaited: a stuck network teardown should not pin the userId queue.
+      session.telegram.disconnect().catch((err: unknown) => {
+        console.error(`[sessions] disconnect failed for ${logUser(userId)}:`, err);
+      });
+      // Keep in pool! So adoptSession can logOut, and getOrCreateSession can reuse same auth key
+      console.log(`[sessions] Disconnected ${logUser(userId)} (kept in pool, session string preserved in SQLite)`);
+    }).catch((err: unknown) => {
+      console.error(`[sessions] disconnectUser lock-handler failed for ${logUser(userId)}:`, err);
+    });
+  }
+
+  /**
+   * Full session destruction: logout from Telegram, remove from memory and SQLite.
+   * Used when user disconnects the connector (OAuth revoke).
+   */
+  async destroyUserSession(userId: string): Promise<{ loggedOut: boolean }> {
+    return this.withLock(userId, () => this.destroyUserSessionImpl(userId));
+  }
+
+  private async destroyUserSessionImpl(userId: string): Promise<{ loggedOut: boolean }> {
+    let loggedOut = false;
+    const session = this.sessions.get(userId);
+
+    if (session) {
+      try {
+        // Reconnect if disconnected, so we can logOut properly.
+        // Bounded (issue #19): this runs inside the per-user lock, so an unbounded wait on
+        // a half-open socket would wedge the user on the "Disconnect" path too. Local
+        // teardown below must happen regardless of whether Telegram answers.
+        loggedOut = await withDeadline("logOut", config.telegramConnectTimeoutMs, async () => {
+          await session.telegram.ensureConnected();
+          return session.telegram.logOut();
+        });
+        console.log(`[sessions] Telegram logOut for ${logUser(userId)}: ${loggedOut}`);
+      } catch (error) {
+        console.error(`[sessions] Telegram logOut failed for ${logUser(userId)}:`, error);
+        try {
+          // Bounded (review finding, issue #19): this runs inside the per-user lock, so an
+          // unbounded `disconnect()` on a half-open socket re-creates the very wedge this
+          // change removes — the logOut above is bounded, but its failure path was not.
+          await withDeadline("disconnect", config.telegramConnectTimeoutMs, () => session.telegram.disconnect());
+        } catch (disconnectError) {
+          // Best-effort cleanup after a failed logOut. We drop the session from
+          // the pool either way, so this cannot be retried — but staying silent
+          // hid the reason a socket was left behind.
+          console.error(`[sessions] disconnect after failed logOut for ${logUser(userId)}:`, disconnectError);
+        }
+      }
+      this.sessions.delete(userId);
+    }
+
+    // Remove session string from SQLite
+    this.db.prepare("DELETE FROM user_sessions WHERE user_id = ?").run(userId);
+
+    // v2.32.0: also wipe multi-account state for this owner.
+    this.deleteSecondariesForOwner(userId);
+
+    console.log(`[sessions] Destroyed session for ${logUser(userId)} (loggedOut=${loggedOut})`);
+
+    return { loggedOut };
+  }
+
+  /** Create a standalone TelegramService (not tracked in the pool) for temporary use like QR login */
+  createTempTelegram(): TelegramService {
+    return this.createTelegram();
+  }
+
+  /**
+   * Adopt an already-connected TelegramService into the session pool.
+   * Only disconnect() the old instance (stops GramJS) — does NOT logOut().
+   * This preserves the auth key so session_string in SQLite stays valid for reconnect.
+   * logOut() is only called on explicit revoke (OAuth disconnect).
+   */
+  async adoptSession(userId: string, telegram: TelegramService): Promise<void> {
+    return this.withLock(userId, () => this.adoptSessionImpl(userId, telegram));
+  }
+
+  private async adoptSessionImpl(userId: string, telegram: TelegramService): Promise<void> {
+    const existing = this.sessions.get(userId);
+    // Install the new entry FIRST so concurrent `getSession(userId)` (called on every MCP
+    // tool dispatch via mcp-handler.ts:140) immediately sees the live, connected instance —
+    // never a TelegramService that is mid-logOut. The teardown of the old auth key happens
+    // fire-and-forget after the swap.
+    this.sessions.set(userId, {
+      telegram,
+      connectedAt: new Date(),
+      lastActivity: new Date(),
+    });
+    if (existing && existing.telegram !== telegram) {
+      // QR login created a NEW auth key on Telegram's side → the old one must be revoked.
+      // Fire-and-forget so callers (notably routes/oauth.tsx after a fresh QR flow) get a
+      // fast response. logOut failures fall back to a best-effort disconnect.
+      void (async () => {
+        try {
+          // Bounded (issue #19): fire-and-forget, so it cannot block a caller, but an
+          // unbounded version leaks a live client plus a promise that never settles for the
+          // lifetime of the process.
+          const loggedOut = await withDeadline("logOut", config.telegramConnectTimeoutMs, async () => {
+            await existing.telegram.ensureConnected();
+            return existing.telegram.logOut();
+          });
+          console.log(`[sessions] Old session logOut for ${logUser(userId)}: ${loggedOut}`);
+        } catch (err: unknown) {
+          console.error(`[sessions] Old session logOut failed for ${logUser(userId)}:`, err);
+          try {
+            // Bounded for the same reason as the logOut above: an unbounded teardown of a
+            // half-open socket never settles and leaks this task forever.
+            await withDeadline("disconnect", config.telegramConnectTimeoutMs, () => existing.telegram.disconnect());
+          } catch (disconnectError) {
+            console.error(`[sessions] disconnect of replaced session for ${logUser(userId)}:`, disconnectError);
+          }
+        }
+      })();
+    }
+    console.log(`[sessions] Adopted session for ${logUser(userId)}`);
+  }
+
+  getActiveCount(): number {
+    return this.sessions.size;
+  }
+
+  /** Get all saved user IDs from SQLite (for session reuse during OAuth) */
+  getSavedUserIds(): string[] {
+    const rows = this.db.prepare("SELECT user_id FROM user_sessions").all() as { user_id: string }[];
+    return rows.map((r) => r.user_id);
+  }
+
+  /**
+   * Try to reconnect a SPECIFIC user's session (pool or SQLite).
+   * Used when we know the userId from a cookie hint.
+   * Returns the TelegramService if successful, null if session is invalid/missing.
+   */
+  async tryReconnectSession(userId: string): Promise<TelegramService | null> {
+    return this.withLock(userId, () => this.tryReconnectSessionImpl(userId));
+  }
+
+  private async tryReconnectSessionImpl(userId: string): Promise<TelegramService | null> {
+    // Fast path: already connected in pool
+    const pooled = this.sessions.get(userId);
+    if (pooled) {
+      try {
+        if (
+          pooled.telegram.isConnected() &&
+          (await withDeadline("ensureConnected", config.telegramConnectTimeoutMs, () =>
+            pooled.telegram.ensureConnected(),
+          ))
+        ) {
+          console.log(`[sessions] tryReconnect: ${logUser(userId)} — pool hit (already connected)`);
+          return pooled.telegram;
+        }
+      } catch (poolError) {
+        // A dead pooled client is expected (revoked session, network drop); we
+        // fall through and rebuild from SQLite below. Logged because a burst of
+        // these is the first sign Telegram is rejecting our auth keys.
+        console.error(`[sessions] pooled client unusable for ${logUser(userId)}, rebuilding:`, poolError);
+      }
+    }
+
+    // Try to reconnect from SQLite session_string with a fresh TelegramService
+    const row = this.db.prepare("SELECT session_string FROM user_sessions WHERE user_id = ?").get(userId) as
+      | { session_string: string }
+      | undefined;
+
+    if (!row?.session_string) {
+      console.log(`[sessions] tryReconnect: ${logUser(userId)} — no session_string in SQLite`);
+      return null;
+    }
+
+    try {
+      const telegram = this.createTelegram();
+      telegram.setSessionString(decryptSecret(row.session_string));
+      const outcome = await this.connectBounded(telegram, userId);
+
+      if (telegram.isConnected()) {
+        // Success — replace stale pool entry
+        if (pooled) {
+          pooled.telegram.disconnect().catch(() => {});
+        }
+        this.sessions.set(userId, {
+          telegram,
+          connectedAt: new Date(),
+          lastActivity: new Date(),
+        });
+        console.log(`[sessions] tryReconnect: ${logUser(userId)} — reconnected from SQLite`);
+        return telegram;
+      }
+
+      if (outcome === "timeout") {
+        // Telegram never answered — that says nothing about whether the session is still
+        // valid. Keep the row; the next call retries with the same auth key.
+        console.error(`[sessions] tryReconnect: ${logUser(userId)} — connect timed out, keeping session_string`);
+        return null;
+      }
+
+      // `connect()` returning false is NOT proof the session is dead (review finding):
+      // upstream returns false for network failures, duplicate auth keys and unknown
+      // errors too. Deleting on that turns a transient outage into a forced re-login, so
+      // the row is destroyed only when Telegram named a revocation reason.
+      if (!isAuthErrorMessage(telegram.lastError)) {
+        console.error(
+          `[sessions] tryReconnect: ${logUser(userId)} — connect failed without a revocation reason, keeping session_string`,
+        );
+        return null;
+      }
+
+      // Session invalid — Telegram answered and refused it. Only now is deleting safe.
+      console.log(`[sessions] tryReconnect: ${logUser(userId)} — session_string invalid, removing`);
+      // Keep the owner identity and its secondary accounts/client grants. Only
+      // this primary Telegram session has been revoked.
+      this.db.prepare("UPDATE user_sessions SET session_string = '' WHERE user_id = ?").run(userId);
+      this.sessions.delete(userId);
+    } catch (err) {
+      console.error(`[sessions] tryReconnect: ${logUser(userId)} — error:`, err);
+    }
+
+    return null;
+  }
+
+  /** Expose the database for shared use (e.g. OAuth tables) */
+  // ──────────────────────────────────────────────────────────────────────────
+  // v2.32.0 multi-account API.
+  //
+  // Concept: every OAuth-authenticated `ownerUserId` has one *primary* Telegram
+  // account (the one that completed the OAuth QR flow, lives in `user_sessions`)
+  // plus zero or more *secondary* accounts (live in `telegram_accounts`). At any
+  // moment exactly one is "active" — that's the one `getSession(ownerUserId)`
+  // returns. Switching is a row update in `active_account`; existing tool
+  // dispatch needs no changes because it always goes through `getSession`.
+  // ──────────────────────────────────────────────────────────────────────────
+
+  /** 0 = primary active (default for owners with no row in `active_account`). */
+  /** Non-secret identity of this attachment, not a date or reusable slot ID.
+   * Secondary IDs are AUTOINCREMENT; binding to the primary attachment also
+   * invalidates them if the owner is removed and later reconnects. */
+  getAccountAttachmentId(ownerUserId: string, accountId: number): string | null {
+    // Old tasks in a start-first rolling update can still insert rows with the
+    // empty default after our startup migration. Lazily fill only those rows;
+    // compare-and-set keeps the generation stable across concurrent readers.
+    this.db
+      .prepare(
+        "UPDATE user_sessions SET attachment_id = lower(hex(randomblob(16))) WHERE user_id = ? AND attachment_id = ''",
+      )
+      .run(ownerUserId);
+    const primary = this.db
+      .prepare("SELECT attachment_id, session_string FROM user_sessions WHERE user_id = ?")
+      .get(ownerUserId) as { attachment_id: string; session_string: string } | undefined;
+    if (!primary?.attachment_id) return null;
+    if (accountId === 0) return primary.session_string ? primary.attachment_id : null;
+    const attached = this.db
+      .prepare("SELECT account_id FROM telegram_accounts WHERE owner_user_id = ? AND account_id = ?")
+      .get(ownerUserId, accountId);
+    return attached ? `${primary.attachment_id}:${accountId}` : null;
+  }
+
+  getActiveAccountId(ownerUserId: string): number {
+    const row = this.db.prepare("SELECT account_id FROM active_account WHERE owner_user_id = ?").get(ownerUserId) as
+      | { account_id: number }
+      | undefined;
+    return row?.account_id ?? 0;
+  }
+
+  /** List primary + secondaries for one owner with `isActive` indicator. */
+  listAccounts(ownerUserId: string): AccountSummary[] {
+    const activeId = this.getActiveAccountId(ownerUserId);
+    const result: AccountSummary[] = [];
+
+    // Primary: the OAuth-authenticated identity itself.
+    const primary = this.db
+      .prepare(
+        "SELECT user_id, label, created_at, updated_at FROM user_sessions WHERE user_id = ? AND session_string != ''",
+      )
+      .get(ownerUserId) as
+      | { user_id: string; label: string | null; created_at: string; updated_at: string }
+      | undefined;
+    if (primary) {
+      result.push({
+        accountId: 0,
+        telegramUserId: primary.user_id,
+        label: primary.label,
+        isPrimary: true,
+        isActive: activeId === 0,
+        addedAt: primary.created_at,
+        lastUsedAt: primary.updated_at,
+      });
+    }
+
+    const rows = this.db
+      .prepare(
+        "SELECT account_id, telegram_user_id, label, added_at, last_used_at FROM telegram_accounts WHERE owner_user_id = ? ORDER BY account_id",
+      )
+      .all(ownerUserId) as Array<{
+      account_id: number;
+      telegram_user_id: string;
+      label: string | null;
+      added_at: string;
+      last_used_at: string;
+    }>;
+    for (const r of rows) {
+      result.push({
+        accountId: r.account_id,
+        telegramUserId: r.telegram_user_id,
+        label: r.label,
+        isPrimary: false,
+        isActive: activeId === r.account_id,
+        addedAt: r.added_at,
+        lastUsedAt: r.last_used_at,
+      });
+    }
+
+    return result;
+  }
+
+  /**
+   * Resolve a user-supplied identifier (label, telegram username with/without `@`,
+   * numeric account_id, or the literal "primary") to an account row this owner can
+   * switch to. Returns `null` if no match. Match is case-insensitive on label and
+   * username. Numeric must be exact.
+   */
+  resolveAccount(ownerUserId: string, identifier: string): AccountSummary | null {
+    const accounts = this.listAccounts(ownerUserId);
+    const norm = identifier.trim().replace(/^@/, "").toLowerCase();
+    if (norm === "primary" || norm === "0") return accounts.find((a) => a.isPrimary) ?? null;
+    const asNum = /^\d+$/.test(norm) ? Number(norm) : NaN;
+    if (Number.isSafeInteger(asNum) && asNum > 0) {
+      return accounts.find((a) => a.accountId === asNum) ?? null;
+    }
+    const matches = accounts.filter(
+      (a) =>
+        (a.label !== null && a.label.replace(/^@/, "").toLowerCase() === norm) ||
+        a.telegramUserId.toLowerCase() === norm,
+    );
+    if (matches.length > 1) throw new Error("Account name is ambiguous. Use account_id from telegram-accounts-list.");
+    return matches[0] ?? null;
+  }
+
+  /** Validate display names against all selectors, so a label cannot shadow another account. */
+  private checkedLabel(ownerUserId: string, accountId: number | null, label: string | null): string | null {
+    const normalized = label?.trim().normalize("NFC") || null;
+    if (normalized === null) return null;
+    if (normalized.length > 64 || /[\p{Cc}\p{Cf}\p{Cs}]/u.test(normalized)) {
+      throw new Error("Account label must contain 1–64 printable characters.");
+    }
+    const key = normalized.replace(/^@/, "").toLowerCase();
+    if (key === "all" || key === "primary" || /^\d+$/.test(key)) {
+      throw new Error("Account labels cannot be all, primary, or numeric IDs.");
+    }
+    if (
+      this.listAccounts(ownerUserId).some(
+        (a) =>
+          a.accountId !== accountId &&
+          (a.label?.replace(/^@/, "").toLowerCase() === key || a.telegramUserId.toLowerCase() === key),
+      )
+    ) {
+      throw new Error("Another account already uses this name. Choose a different label.");
+    }
+    return normalized;
+  }
+
+  renameAccount(ownerUserId: string, accountId: number, label: string): void {
+    const account = this.listAccounts(ownerUserId).find((a) => a.accountId === accountId);
+    if (!account) throw new Error("Account not found.");
+    const normalized = this.checkedLabel(ownerUserId, accountId, label);
+    if (!normalized) throw new Error("Account label cannot be empty.");
+    if (accountId === 0)
+      this.db.prepare("UPDATE user_sessions SET label = ? WHERE user_id = ?").run(normalized, ownerUserId);
+    else
+      this.db
+        .prepare("UPDATE telegram_accounts SET label = ? WHERE owner_user_id = ? AND account_id = ?")
+        .run(normalized, ownerUserId, accountId);
+  }
+
+  /** Replace a dead account's key while keeping its identity/label stable.
+   * The QR caller disconnects its temporary client BEFORE publishing the key here. */
+  async replaceAccountSession(ownerUserId: string, accountId: number, sessionString: string): Promise<void> {
+    if (!sessionString) throw new Error("A valid Telegram session is required.");
+    const key = accountId === 0 ? ownerUserId : secondaryKey(ownerUserId, accountId);
+    return this.withLock(key, async () => {
+      if (!this.listAccounts(ownerUserId).some((a) => a.accountId === accountId)) {
+        throw new Error("Account is no longer attached to this owner.");
+      }
+      const attachment = this.getAccountAttachmentId(ownerUserId, accountId);
+      const old = this.sessions.get(key);
+      if (old) {
+        this.sessions.delete(key);
+        try {
+          await withDeadline("replace.disconnect", config.telegramConnectTimeoutMs, () => old.telegram.disconnect());
+        } catch {
+          /* A failed old key must not prevent deliberate reauthorization. */
+        }
+      }
+      if (this.getAccountAttachmentId(ownerUserId, accountId) !== attachment) {
+        throw new Error("Account was disconnected while replacing its session.");
+      }
+      if (accountId === 0) this.saveSessionString(ownerUserId, sessionString);
+      else
+        this.db
+          .prepare(
+            "UPDATE telegram_accounts SET session_string = ?, last_used_at = datetime('now') WHERE owner_user_id = ? AND account_id = ?",
+          )
+          .run(encryptSecret(sessionString), ownerUserId, accountId);
+    });
+  }
+
+  /** Detach just one account. The owner record is independent of its primary Telegram session. */
+  disconnectAccount(ownerUserId: string, accountId: number): boolean {
+    if (accountId !== 0) return this.removeAccount(ownerUserId, accountId);
+    const result = this.db
+      .prepare(
+        "UPDATE user_sessions SET session_string = '', attachment_id = ?, updated_at = datetime('now') WHERE user_id = ? AND session_string != ''",
+      )
+      .run(randomBytes(16).toString("hex"), ownerUserId);
+    const pooled = this.sessions.get(ownerUserId);
+    if (pooled) {
+      this.sessions.delete(ownerUserId);
+      pooled.telegram.disconnect().catch(() => {});
+    }
+    return result.changes > 0;
+  }
+
+  /** Switch the owner's active account. account_id=0 means "back to primary". */
+  setActiveAccount(ownerUserId: string, accountId: number): void {
+    if (accountId !== 0) {
+      const exists = this.db
+        .prepare("SELECT 1 FROM telegram_accounts WHERE owner_user_id = ? AND account_id = ?")
+        .get(ownerUserId, accountId);
+      if (!exists) throw new Error(`Account ${accountId} not found for owner ${logUser(ownerUserId)}`);
+    }
+    this.db
+      .prepare(
+        `INSERT INTO active_account (owner_user_id, account_id, switched_at)
+         VALUES (?, ?, datetime('now'))
+         ON CONFLICT(owner_user_id) DO UPDATE SET account_id = excluded.account_id, switched_at = excluded.switched_at`,
+      )
+      .run(ownerUserId, accountId);
+    if (accountId > 0) {
+      this.db
+        .prepare("UPDATE telegram_accounts SET last_used_at = datetime('now') WHERE account_id = ?")
+        .run(accountId);
+    }
+  }
+
+  /**
+   * Add a secondary Telegram account for this owner. Called from the add-account
+   * QR-flow after a successful login. Idempotent on `(owner_user_id, telegram_user_id)`
+   * — re-adding the same Telegram identity updates the session_string and label.
+   * Returns the resulting account_id (new or existing).
+   */
+  addAccount(ownerUserId: string, telegramUserId: string, sessionString: string, label: string | null): number {
+    // Scanning the already attached primary must not create a duplicate account.
+    if (telegramUserId === ownerUserId) {
+      const normalized = this.checkedLabel(ownerUserId, 0, label);
+      this.saveSessionString(ownerUserId, sessionString);
+      if (normalized) this.renameAccount(ownerUserId, 0, normalized);
+      return 0;
+    }
+    const existing = this.db
+      .prepare("SELECT account_id FROM telegram_accounts WHERE owner_user_id = ? AND telegram_user_id = ?")
+      .get(ownerUserId, telegramUserId) as { account_id: number } | undefined;
+    label = this.checkedLabel(ownerUserId, existing?.account_id ?? null, label);
+
+    const encrypted = encryptSecret(sessionString);
+    if (existing) {
+      this.db
+        .prepare(
+          "UPDATE telegram_accounts SET session_string = ?, label = ?, last_used_at = datetime('now') WHERE account_id = ?",
+        )
+        .run(encrypted, label, existing.account_id);
+      return existing.account_id;
+    }
+
+    const result = this.db
+      .prepare(
+        "INSERT INTO telegram_accounts (owner_user_id, telegram_user_id, session_string, label) VALUES (?, ?, ?, ?)",
+      )
+      .run(ownerUserId, telegramUserId, encrypted, label);
+    return Number(result.lastInsertRowid);
+  }
+
+  /**
+   * Remove a secondary account. If it was active, fall back to primary (0).
+   * The primary account is NOT removable here — `destroyUserSession` is the
+   * only path that revokes the OAuth identity itself.
+   */
+  removeAccount(ownerUserId: string, accountId: number): boolean {
+    if (accountId === 0) throw new Error("Cannot remove primary account via removeAccount — use destroyUserSession");
+    const result = this.db
+      .prepare("DELETE FROM telegram_accounts WHERE owner_user_id = ? AND account_id = ?")
+      .run(ownerUserId, accountId);
+    if (result.changes === 0) return false;
+    // Drop the live session from pool (fire-and-forget disconnect).
+    const key = secondaryKey(ownerUserId, accountId);
+    const pooled = this.sessions.get(key);
+    if (pooled) {
+      this.sessions.delete(key);
+      pooled.telegram.disconnect().catch(() => {});
+    }
+    // Demote active if this was the active one.
+    if (this.getActiveAccountId(ownerUserId) === accountId) {
+      this.setActiveAccount(ownerUserId, 0);
+    }
+    return true;
+  }
+
+  /**
+   * Ensure the live session for the owner's currently-active account is in the
+   * pool. Primary path delegates to `getOrCreateSession(ownerUserId)` (which
+   * looks at `user_sessions`); secondary path looks up the account row, creates
+   * a fresh `TelegramService`, sets the session string and connects.
+   *
+   * Pool key for secondary is `secondaryKey(ownerUserId, accountId)`.
+   */
+  async ensureActiveSession(ownerUserId: string): Promise<TelegramService> {
+    const accountId = this.getActiveAccountId(ownerUserId);
+    return this.ensureAccountSession(ownerUserId, accountId);
+  }
+
+  /** Capture a specific account; never fall back to a different Telegram sender. */
+  async ensureAccountSession(ownerUserId: string, accountId: number): Promise<TelegramService> {
+    if (!this.listAccounts(ownerUserId).some((a) => a.accountId === accountId)) {
+      throw new Error("Account was disconnected or does not belong to this connection.");
+    }
+    const attachment = this.getAccountAttachmentId(ownerUserId, accountId);
+    const telegram = await this.ensureAccountSessionImpl(ownerUserId, accountId);
+    if (
+      attachment !== this.getAccountAttachmentId(ownerUserId, accountId) ||
+      !this.listAccounts(ownerUserId).some((a) => a.accountId === accountId)
+    ) {
+      const key = accountId === 0 ? ownerUserId : secondaryKey(ownerUserId, accountId);
+      if (this.sessions.get(key)?.telegram === telegram) this.sessions.delete(key);
+      telegram.disconnect().catch(() => {});
+      throw new Error("Account was disconnected while connecting; no other sender was selected.");
+    }
+    return telegram;
+  }
+
+  private async ensureAccountSessionImpl(ownerUserId: string, accountId: number): Promise<TelegramService> {
+    if (accountId === 0) return this.getOrCreateSession(ownerUserId);
+    const key = secondaryKey(ownerUserId, accountId);
+    return this.withLock(key, async () => {
+      const pooled = this.sessions.get(key);
+      if (pooled) {
+        pooled.lastActivity = new Date();
+        if (!pooled.telegram.isConnected()) {
+          // Same lock-pinning hazard as the primary path (issue #19), same bound, same
+          // in-place recovery so one account never ends up with two live clients.
+          try {
+            await withDeadline("ensureConnected", config.telegramConnectTimeoutMs, () =>
+              pooled.telegram.ensureConnected(),
+            );
+          } catch (e) {
+            if (!isDeadlineError(e)) throw e;
+            pooled.telegram.markUnhealthy(`ensureConnected exceeded ${e.timeoutMs}ms`);
+            console.error(
+              `[sessions] ensureConnected timed out for secondary account of ${logUser(ownerUserId)} — marked unhealthy`,
+            );
+          }
+        }
+        return pooled.telegram;
+      }
+      const row = this.db
+        .prepare("SELECT session_string FROM telegram_accounts WHERE owner_user_id = ? AND account_id = ?")
+        .get(ownerUserId, accountId) as { session_string: string } | undefined;
+      if (!row?.session_string) {
+        throw new Error("Account was disconnected during the request. Choose another account explicitly.");
+      }
+      const telegram = this.createTelegram();
+      telegram.setSessionString(decryptSecret(row.session_string));
+      const connected = (await this.connectBounded(telegram, ownerUserId)) === "connected";
+      if (connected) {
+        this.sessions.set(key, { telegram, connectedAt: new Date(), lastActivity: new Date() });
+      }
+      return telegram;
+    });
+  }
+
+  // ── add-account capability tokens ────────────────────────────────────────
+
+  /** Create a one-time short-lived URL token allowing QR-login that attaches a new
+   *  Telegram identity to `ownerUserId`. The token IS the auth — keep TTL short. */
+  createAddAccountToken(ownerUserId: string, label: string | null, ttlSeconds: number): string {
+    const token = randomBytes(24).toString("hex");
+    const expiresAt = Math.floor(Date.now() / 1000) + ttlSeconds;
+    this.db
+      .prepare("INSERT INTO add_account_tokens (token, owner_user_id, label, expires_at) VALUES (?, ?, ?, ?)")
+      .run(token, ownerUserId, label, expiresAt);
+    return token;
+  }
+
+  /** Validate an add-account token without consuming it (for GET page render). */
+  peekAddAccountToken(token: string): { ownerUserId: string; label: string | null } | null {
+    const row = this.db
+      .prepare("SELECT owner_user_id, label, expires_at, used FROM add_account_tokens WHERE token = ?")
+      .get(token) as { owner_user_id: string; label: string | null; expires_at: number; used: number } | undefined;
+    if (!row) return null;
+    if (row.used === 1) return null;
+    if (row.expires_at < Math.floor(Date.now() / 1000)) return null;
+    return { ownerUserId: row.owner_user_id, label: row.label };
+  }
+
+  /** Consume an add-account token (single-use). Returns the owner/label on success. */
+  consumeAddAccountToken(token: string): { ownerUserId: string; label: string | null } | null {
+    const peeked = this.peekAddAccountToken(token);
+    if (!peeked) return null;
+    const result = this.db.prepare("UPDATE add_account_tokens SET used = 1 WHERE token = ? AND used = 0").run(token);
+    if (result.changes === 0) return null;
+    return peeked;
+  }
+
+  // ── review-access tokens ─────────────────────────────────────────────────
+
+  /**
+   * v2.55.2: review tokens were briefly stored in plaintext, unlike every other
+   * credential in this database. A stolen backup would have handed over working
+   * access, so existing rows are re-keyed to `hashToken` and the plaintext
+   * column is dropped. Links issued before the migration keep working — the
+   * hash of the same token still matches.
+   */
+  private migrateReviewTokensToHashes(): void {
+    const columns = this.db.prepare("PRAGMA table_info(review_tokens)").all() as Array<{ name: string }>;
+    if (!columns.some((c) => c.name === "token")) return;
+
+    const legacy = this.db
+      .prepare("SELECT token, user_id, note, expires_at, revoked, uses, last_used_at, created_at FROM review_tokens")
+      .all() as Array<{
+      token: string;
+      user_id: string;
+      note: string | null;
+      expires_at: number;
+      revoked: number;
+      uses: number;
+      last_used_at: string | null;
+      created_at: string;
+    }>;
+
+    this.db.exec("DROP TABLE review_tokens");
+    this.db.exec(`
+      CREATE TABLE review_tokens (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        token_hash TEXT NOT NULL UNIQUE,
+        user_id TEXT NOT NULL,
+        note TEXT,
+        expires_at INTEGER NOT NULL,
+        revoked INTEGER NOT NULL DEFAULT 0,
+        uses INTEGER NOT NULL DEFAULT 0,
+        last_used_at TEXT,
+        created_at TEXT DEFAULT (datetime('now'))
+      );
+      CREATE INDEX IF NOT EXISTS idx_review_tokens_expires ON review_tokens(expires_at);
+    `);
+
+    const insert = this.db.prepare(
+      "INSERT INTO review_tokens (token_hash, user_id, note, expires_at, revoked, uses, last_used_at, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+    );
+    for (const row of legacy) {
+      insert.run(
+        hashToken(row.token),
+        row.user_id,
+        row.note,
+        row.expires_at,
+        row.revoked,
+        row.uses,
+        row.last_used_at,
+        row.created_at,
+      );
+    }
+    console.log(`[sessions] review_tokens migrated to hashed storage (${legacy.length} row(s))`);
+  }
+
+  /** Issue a review token pointing at an existing session. The token IS the
+   *  auth: anyone holding it gets that account's full MCP access until it
+   *  expires or is revoked, so only ever point it at a demo account. */
+  createReviewToken(userId: string, note: string | null, ttlSeconds: number): string {
+    // 24 random bytes = 192 bits. The server is open source, so the endpoint and
+    // its shape are public by design; all of the protection has to live in this
+    // secret, and none of it in obscurity.
+    const token = randomBytes(24).toString("hex");
+    const expiresAt = Math.floor(Date.now() / 1000) + ttlSeconds;
+    this.db
+      .prepare("INSERT INTO review_tokens (token_hash, user_id, note, expires_at) VALUES (?, ?, ?, ?)")
+      .run(hashToken(token), userId, note, expiresAt);
+    return token;
+  }
+
+  /** Resolve a review token and count the visit. Returns null when the token is
+   *  unknown, revoked or expired. */
+  resolveReviewToken(token: string): { userId: string; uses: number; note: string | null } | null {
+    const hash = hashToken(token);
+    const row = this.db
+      .prepare("SELECT user_id, note, expires_at, revoked, uses FROM review_tokens WHERE token_hash = ?")
+      .get(hash) as
+      | { user_id: string; note: string | null; expires_at: number; revoked: number; uses: number }
+      | undefined;
+    if (!row) return null;
+    if (row.revoked === 1) return null;
+    if (row.expires_at < Math.floor(Date.now() / 1000)) return null;
+    this.db
+      .prepare("UPDATE review_tokens SET uses = uses + 1, last_used_at = datetime('now') WHERE token_hash = ?")
+      .run(hash);
+    return { userId: row.user_id, uses: row.uses + 1, note: row.note };
+  }
+
+  /**
+   * True when `userId` is the demo account behind a live (unrevoked, unexpired) review
+   * link. Unlike {@link resolveReviewToken} it does NOT count as a visit.
+   *
+   * Such an account is shared by every directory reviewer, so a single reviewer pressing
+   * "Disconnect" must not log it out of Telegram for everyone else (found 2026-09-29: one
+   * OAuth revoke on 2026-09-25 logged the demo account out and left the review code dead
+   * for the whole of an OpenAI review).
+   */
+  isReviewAccount(userId: string): boolean {
+    const row = this.db
+      .prepare("SELECT 1 FROM review_tokens WHERE user_id = ? AND revoked = 0 AND expires_at > ? LIMIT 1")
+      .get(userId, Math.floor(Date.now() / 1000));
+    return row != null;
+  }
+
+  /** Revoke a review token, by the token itself or by the id from
+   *  {@link listReviewTokens}. Returns false when nothing matched. */
+  revokeReviewToken(tokenOrId: string | number): boolean {
+    if (typeof tokenOrId === "number") {
+      return this.db.prepare("UPDATE review_tokens SET revoked = 1 WHERE id = ?").run(tokenOrId).changes > 0;
+    }
+    return (
+      this.db.prepare("UPDATE review_tokens SET revoked = 1 WHERE token_hash = ?").run(hashToken(tokenOrId)).changes > 0
+    );
+  }
+
+  /** Operator view: every issued token with its state. Only the hash is stored,
+   *  so a listing physically cannot hand out working access; use `id` to revoke. */
+  listReviewTokens(): Array<{
+    id: number;
+    userId: string;
+    note: string | null;
+    expiresAt: number;
+    revoked: boolean;
+    uses: number;
+    lastUsedAt: string | null;
+  }> {
+    const rows = this.db
+      .prepare(
+        "SELECT id, user_id, note, expires_at, revoked, uses, last_used_at FROM review_tokens ORDER BY created_at DESC",
+      )
+      .all() as Array<{
+      id: number;
+      user_id: string;
+      note: string | null;
+      expires_at: number;
+      revoked: number;
+      uses: number;
+      last_used_at: string | null;
+    }>;
+    return rows.map((r) => ({
+      id: r.id,
+      userId: r.user_id,
+      note: r.note,
+      expiresAt: r.expires_at,
+      revoked: r.revoked === 1,
+      uses: r.uses,
+      lastUsedAt: r.last_used_at,
+    }));
+  }
+
+  /** Periodic cleanup — drop expired / used add-account tokens older than a day. */
+  pruneAddAccountTokens(): number {
+    const now = Math.floor(Date.now() / 1000);
+    const result = this.db.prepare("DELETE FROM add_account_tokens WHERE expires_at < ? OR used = 1").run(now);
+    return result.changes;
+  }
+
+  /**
+   * On destroyUserSession, also delete this owner's secondary accounts. Caller
+   * runs inside the per-user lock so this is safe to perform inline.
+   */
+  private deleteSecondariesForOwner(ownerUserId: string): void {
+    const rows = this.db
+      .prepare("SELECT account_id FROM telegram_accounts WHERE owner_user_id = ?")
+      .all(ownerUserId) as Array<{ account_id: number }>;
+    for (const { account_id } of rows) {
+      const key = secondaryKey(ownerUserId, account_id);
+      const pooled = this.sessions.get(key);
+      if (pooled) {
+        this.sessions.delete(key);
+        pooled.telegram.disconnect().catch(() => {});
+      }
+    }
+    this.db.prepare("DELETE FROM telegram_accounts WHERE owner_user_id = ?").run(ownerUserId);
+    this.db.prepare("DELETE FROM active_account WHERE owner_user_id = ?").run(ownerUserId);
+    this.db.prepare("DELETE FROM add_account_tokens WHERE owner_user_id = ?").run(ownerUserId);
+  }
+
+  getDb(): Database {
+    return this.db;
+  }
+
+  /**
+   * One-time backfill: re-encrypt any legacy plaintext `session_string` rows in place.
+   *
+   * Lazy re-encryption already happens on every write (saveSessionString / addAccount run
+   * the value through {@link encryptSecret}), so an active user migrates on their next
+   * disconnect/reconnect. This sweep finishes the long tail of dormant rows.
+   *
+   * TIMING (why this is NOT called from the constructor): during a `start-first` rolling
+   * update the OLD container — which has no decrypt path — keeps serving from the SAME
+   * volume for up to its 90s drain. If we re-encrypted on boot, the old container would
+   * read a `v1:` envelope, feed it verbatim to GramJS, and break live sessions. Callers
+   * MUST defer this until the old task is gone (server.tsx schedules it ~2 min post-boot).
+   * No-op in passthrough mode (no key) — nothing to upgrade to.
+   *
+   * @returns count of rows re-encrypted across both tables.
+   */
+  migratePlaintextSessions(): number {
+    if (!encryptionEnabled()) return 0;
+    let migrated = 0;
+
+    const userRows = this.db.prepare("SELECT user_id, session_string FROM user_sessions").all() as Array<{
+      user_id: string;
+      session_string: string;
+    }>;
+    const upUser = this.db.prepare("UPDATE user_sessions SET session_string = ? WHERE user_id = ?");
+    for (const r of userRows) {
+      if (isEncrypted(r.session_string)) continue;
+      upUser.run(encryptSecret(r.session_string), r.user_id);
+      migrated++;
+    }
+
+    const acctRows = this.db.prepare("SELECT account_id, session_string FROM telegram_accounts").all() as Array<{
+      account_id: number;
+      session_string: string;
+    }>;
+    const upAcct = this.db.prepare("UPDATE telegram_accounts SET session_string = ? WHERE account_id = ?");
+    for (const r of acctRows) {
+      if (isEncrypted(r.session_string)) continue;
+      upAcct.run(encryptSecret(r.session_string), r.account_id);
+      migrated++;
+    }
+
+    // Caller (server.tsx) emits the structured logger.info — no console.log here to avoid
+    // a duplicate line in the log stream.
+    return migrated;
+  }
+
+  /**
+   * Test-only helper: number of pending lock entries (should be 0 when no operations are
+   * in flight). Underscore prefix + `@internal` keep this off public API surface.
+   * @internal
+   */
+  _getPendingLockCount(): number {
+    return this.locks.size;
+  }
+
+  close(): void {
+    this.db.close();
+  }
+}

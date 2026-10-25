@@ -1,0 +1,35 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "tg",
+  "version": "0.1.0",
+  "description": "Личный Telegram в ChatGPT и Codex: переписки, поиск, сообщения и несколько именованных аккаунтов.",
+  "author": {
+    "name": "Donkiton"
+  },
+  "license": "MIT",
+  "extensions": {
+    "com.openai": {
+      "interface": {
+        "displayName": "tg",
+        "shortDescription": "Telegram: чаты и аккаунты",
+        "longDescription": "Работайте со своими Telegram-аккаунтами через собственный MCP-сервер: читайте переписки, ищите сообщения и отправляйте ответы по явному запросу. Подключайте аккаунты через браузерный QR-вход и 2FA, задавайте им свои названия и выбирайте отправителя отдельно для каждого действия. Доступные команды определяет подключённый сервер.",
+        "category": "Communication",
+        "capabilities": [
+          "Read",
+          "Write"
+        ],
+        "defaultPrompt": [
+          "Покажи непрочитанные сообщения по всем подключённым аккаунтам.",
+          "Найди сообщения о встрече в рабочем аккаунте.",
+          "Покажи подключённые аккаунты и их названия."
+        ],
+        "brandColor": "#168AC6",
+        "brandColorDark": "#229ED9",
+        "logo": "./assets/tg-logo.png",
+        "logoDark": "./assets/tg-logo-dark.png",
+        "composerIcon": "./assets/tg-composer.png",
+        "composerIconDark": "./assets/tg-composer-dark.png"
+      }
+    }
+  }
+}

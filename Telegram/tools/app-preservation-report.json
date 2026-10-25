@@ -1,0 +1,43 @@
+{
+  "status": "preserved",
+  "plugin_id": "plugin_asdk_app_6adde97bd2a88191986f132cf6d4c496",
+  "expected_release_id": "pluginrel_6addec0241e88191bafebcc6fd5d7943",
+  "version_before": "1.0.1",
+  "version_after": "1.0.2",
+  "app_binding_preserved_byte_for_byte": true,
+  "interface_preserved": true,
+  "defaultPrompt_present_and_null": true,
+  "name_preserved": true,
+  "author_preserved": true,
+  "description_preserved": true,
+  "legacy_root_effective_configuration_equal": true,
+  "new_mcp_configuration": false,
+  "custom_skill_icons": 0,
+  "optional_app_skill_removed": true,
+  "portable_skill_preserved": true,
+  "delete_paths": [
+    "skills/tg-workflow/SKILL.md",
+    "skills/tg-workflow/agents/openai.yaml",
+    "skills/tg-workflow/assets/tg-skill-large.png",
+    "skills/tg-workflow/assets/tg-skill-small.png"
+  ],
+  "reason": "The web UI rendered the optional skill as a generic cube despite declared skill icons. The working App remains; its redundant skill entry is removed.",
+  "allowed_changes": [
+    "Version 1.0.1 -> 1.0.2",
+    "Remove the optional App-backed skill files and legacy skills declaration"
+  ],
+  "files": {
+    ".app.json": {
+      "bytes": 127,
+      "sha256": "d8aa20e1877d0c4350f71b9d1ca8a6bdf6d7d4124e5ffd69d80687d541029853"
+    },
+    ".codex-plugin/plugin.json": {
+      "bytes": 815,
+      "sha256": "cea4adc90d8b4c2f705b22e365f60f2920487dddc9f45a2f1070aebef878cab0"
+    },
+    "plugin.json": {
+      "bytes": 960,
+      "sha256": "a0deda03b37453ebeb7ad01c0810ee5ccc118fd55872e65586f448e5c6a0ad12"
+    }
+  }
+}

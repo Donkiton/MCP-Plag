@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="assets/readme/hero.svg" width="100%" alt="MCP-Plag：ChatGPT 通过 MCP 连接 Mail.ru 和 Yandex Music">
+  <img src="assets/readme/hero.svg" width="100%" alt="MCP-Plag：ChatGPT 通过 MCP 连接 Mail.ru、Yandex Music 和 Telegram">
 </p>
 
 <p align="center">
@@ -8,9 +8,9 @@
 
 # MCP-Plag
 
-**在 ChatGPT 中使用邮件和音乐，并获取可自行部署的服务器源码。**
+**在 ChatGPT 中使用邮件、音乐和 Telegram，并获取可自行部署的服务器源码。**
 
-本仓库收集 ChatGPT 插件及其 MCP 服务器，提供安装包、代码、图标、部署说明和检查工具。目前包含 Mail.ru 和 Yandex Music 两项集成。
+本仓库收集 ChatGPT 插件及其 MCP 服务器，提供安装包、代码、图标、部署说明和检查工具。目前包含 Mail.ru、Yandex Music 和 Telegram 三项集成。
 
 ## 选择集成
 
@@ -18,6 +18,7 @@
 | --- | --- | --- |
 | **Mail / Mail.ru** | 搜索和阅读邮件，管理草稿、附件和文件夹 | [概览](Mail.ru/README.md) · [压缩包](Mail.ru/releases/) |
 | **Yandex Music** | 搜索音乐、获取推荐、管理自己的歌单 | [概览](Yandex.Music/README.md) · [压缩包](Yandex.Music/releases/) |
+| **@tg / Telegram** | 阅读和搜索消息、选择已命名账号；真实账号首次登录仍待验证 | [概览](Telegram/README.md) · [压缩包](Telegram/releases/) · [状态](Telegram/STATUS.md) |
 
 ### Mail：从邮件到回复草稿
 
@@ -45,7 +46,7 @@
 
 已发布包中的标识符属于作者的部署实例。复制 ZIP 文件本身不会创建独立集成。当前服务器运行在 **VDSina**；自行部署时，也可以使用其他 VPS/VDS 或具有可访问 HTTPS 地址的机器。Yandex Music 还保留了 SSH 连接模式。
 
-[部署 Mail](Mail.ru/server/README.md) · [部署 Yandex Music](Yandex.Music/server/README.md)
+[部署 Mail](Mail.ru/server/README.md) · [部署 Yandex Music](Yandex.Music/server/README.md) · [部署 @tg](Telegram/server/README.md)
 
 ## 数据与访问范围
 
@@ -61,6 +62,7 @@ Mail 附件限制、授权要求和验证方式详见各集成的说明。Mail �
 ```text
 Mail.ru/           Mail 插件、MCP 服务器、测试和 ZIP 包
 Yandex.Music/      Yandex Music 插件、MCP 服务器和 ZIP 包
+Telegram/          @tg 插件、MCP 服务器、图标、测试和 ZIP 包
 assets/readme/     可编辑的 SVG 连接图
 README*.md        五种语言的项目说明
 ```
@@ -72,6 +74,8 @@ python Mail.ru/tools/build_releases.py
 python Mail.ru/tools/verify_package.py
 python Yandex.Music/tools/build_releases.py
 python Yandex.Music/tools/verify_package.py
+python Telegram/tools/build_releases.py
+python Telegram/tools/verify_package.py
 ```
 
 各集成目录中提供测试说明和版本信息。构建压缩包无需访问真实邮件或修改音乐歌单。详细集成说明目前为俄语。

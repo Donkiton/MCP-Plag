@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="assets/readme/hero.svg" width="100%" alt="MCP-Plag: ChatGPT connects to Mail.ru and Yandex Music through MCP">
+  <img src="assets/readme/hero.svg" width="100%" alt="MCP-Plag: ChatGPT connects to Mail.ru, Yandex Music and Telegram through MCP">
 </p>
 
 <p align="center">
@@ -8,9 +8,9 @@
 
 # MCP-Plag
 
-**Email and music in ChatGPT, with server source code you can host yourself.**
+**Email, music and Telegram in ChatGPT, with server source code you can host yourself.**
 
-A collection of ChatGPT plugins and their MCP servers: ready-made packages, code, icons, setup guides, and checks. The repository contains two integrations: Mail.ru and Yandex Music.
+A collection of ChatGPT plugins and their MCP servers: ready-made packages, code, icons, setup guides, and checks. The repository contains three integrations: Mail.ru, Yandex Music and Telegram.
 
 ## Choose an integration
 
@@ -18,6 +18,7 @@ A collection of ChatGPT plugins and their MCP servers: ready-made packages, code
 | --- | --- | --- |
 | **Mail / Mail.ru** | Search and read email; work with drafts, attachments, and folders | [Overview](Mail.ru/README.md) · [Archives](Mail.ru/releases/) |
 | **Yandex Music** | Find music, get recommendations, and manage your playlists | [Overview](Yandex.Music/README.md) · [Archives](Yandex.Music/releases/) |
+| **@tg / Telegram** | Read and search messages, choose named accounts; first real login still pending | [Overview](Telegram/README.md) · [Archives](Telegram/releases/) · [Status](Telegram/STATUS.md) |
 
 ### Mail: from a message to a reply draft
 
@@ -35,9 +36,13 @@ Replies and forwards create drafts by default. Sending requires an explicit requ
 
 This is a private installation using one server account. Audio streaming and downloads are not provided. [Yandex Music features and setup →](Yandex.Music/README.md)
 
+### @tg: multiple Telegram accounts
+
+**App 1.0.2 · MCP 0.1.0.** QR/2FA login, account labels, renaming and explicit sender selection are implemented. The server is deployed on VDSina; the owner's first real login is waiting for the my.telegram.org attempt limit to clear. All 923 tests and package checks passed; real operations and remaining icon slots require login. [@tg features and status →](Telegram/README.md)
+
 ## Host your own server
 
-The connection is **ChatGPT → MCP server → selected service**. A plugin package links ChatGPT to a registered app; the server carries out email or music operations.
+The connection is **ChatGPT → MCP server → selected service**. A plugin package links ChatGPT to a registered app; the server carries out email, music or Telegram operations.
 
 1. Open the integration overview and download its plugin package and server archive.
 2. Deploy the server, install dependencies, and configure HTTPS and private settings using its guide.
@@ -45,7 +50,7 @@ The connection is **ChatGPT → MCP server → selected service**. A plugin pack
 
 The identifiers in the published packages belong to the author’s installation. Copying a ZIP does not create a separate integration. The current servers run on **VDSina**; you can deploy your own instance on another VPS/VDS or a machine with a reachable HTTPS address. Yandex Music also includes an SSH connection mode.
 
-[Deploy Mail](Mail.ru/server/README.md) · [Deploy Yandex Music](Yandex.Music/server/README.md)
+[Deploy Mail](Mail.ru/server/README.md) · [Deploy Yandex Music](Yandex.Music/server/README.md) · [Deploy @tg](Telegram/server/README.md)
 
 ## Data and access
 
@@ -61,6 +66,7 @@ See each integration’s guide for Mail attachment limits, authorization require
 ```text
 Mail.ru/           Mail plugin, MCP server, tests, and ZIP files
 Yandex.Music/      Yandex Music plugin, MCP server, and ZIP files
+Telegram/          @tg plugin, MCP server, icons, tests and ZIP files
 assets/readme/     Editable SVG connection diagram
 README*.md        Descriptions in five languages
 ```
@@ -72,6 +78,8 @@ python Mail.ru/tools/build_releases.py
 python Mail.ru/tools/verify_package.py
 python Yandex.Music/tools/build_releases.py
 python Yandex.Music/tools/verify_package.py
+python Telegram/tools/build_releases.py
+python Telegram/tools/verify_package.py
 ```
 
 Each integration directory contains testing instructions and version information. Building archives does not require accessing real mail or changing music playlists. Detailed integration guides are currently in Russian.

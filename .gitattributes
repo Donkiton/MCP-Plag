@@ -16,3 +16,6 @@ Mail.ru/server/** -text
 Yandex.Music/plugin/** -text whitespace=cr-at-eol
 Yandex.Music/server/** -text whitespace=cr-at-eol
 *.whl binary
+
+# Preserve @tg source, manifests and checksum inventory byte for byte.
+Telegram/** -text whitespace=cr-at-eol

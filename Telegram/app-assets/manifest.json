@@ -1,0 +1,138 @@
+{
+  "approved_variant": "A",
+  "status": "approved_by_user_2026-10-25",
+  "generator": "Built-in ImageGen",
+  "theme_policy": "The approved azure-and-white sign is intentionally reused with explicit custom light/dark assets.",
+  "slots": {
+    "registered_app_upload": "app-assets/tg-256.png",
+    "app_upload_128": "app-assets/tg-128.png",
+    "app_upload_64": "app-assets/tg-64.png",
+    "plugin.logo": "plugin/assets/tg-logo.png",
+    "plugin.logoDark": "plugin/assets/tg-logo-dark.png",
+    "plugin.composerIcon": "plugin/assets/tg-composer.png",
+    "plugin.composerIconDark": "plugin/assets/tg-composer-dark.png",
+    "serverInfo.icons": "server/assets/icon-512.png",
+    "all_tools.icons": "server/assets/tool-icon.png",
+    "connection_pages_light": "server/assets/login-icon.png",
+    "connection_pages_dark": "server/assets/login-icon-dark.png",
+    "favicon_16": "server/assets/favicon-16.png",
+    "favicon_32": "server/assets/favicon-32.png",
+    "favicon_48": "server/assets/favicon-48.png",
+    "favicon_ico": "server/assets/favicon.ico",
+    "apple_touch_icon": "server/assets/apple-touch-icon.png",
+    "pwa_192": "server/assets/tg-192.png",
+    "pwa_512": "server/assets/tg-512.png"
+  },
+  "assets": [
+    {
+      "path": "plugin/assets/tg-composer-dark.png",
+      "bytes": 137619,
+      "sha256": "e0de3b847ddbb279ebb59a50d65ff8e6e6ea51dd8c534d452936df76d5438065"
+    },
+    {
+      "path": "plugin/assets/tg-composer.png",
+      "bytes": 137619,
+      "sha256": "e0de3b847ddbb279ebb59a50d65ff8e6e6ea51dd8c534d452936df76d5438065"
+    },
+    {
+      "path": "plugin/assets/tg-logo-dark.png",
+      "bytes": 137619,
+      "sha256": "e0de3b847ddbb279ebb59a50d65ff8e6e6ea51dd8c534d452936df76d5438065"
+    },
+    {
+      "path": "plugin/assets/tg-logo.png",
+      "bytes": 137619,
+      "sha256": "e0de3b847ddbb279ebb59a50d65ff8e6e6ea51dd8c534d452936df76d5438065"
+    },
+    {
+      "path": "app-assets/tg-128.png",
+      "bytes": 2686,
+      "sha256": "282eb5fd8d7d559869c9fec0091dfa8b56428bdcf47de6d601f97b97483057b0"
+    },
+    {
+      "path": "app-assets/tg-256.png",
+      "bytes": 4443,
+      "sha256": "7d66ada09d56189818d2ea9e902777b1a14351c6f4544561b5ab704b9323f809"
+    },
+    {
+      "path": "app-assets/tg-64.png",
+      "bytes": 4618,
+      "sha256": "ab92f1b9bec7d17dea7962f1d7da3aa561892b12d957befc621df1ec46bf446e"
+    },
+    {
+      "path": "app-assets/tg-master.png",
+      "bytes": 839192,
+      "sha256": "6911373f58b7298fd65ed37c91f6a18d4640d4eb0b698fad4a5feaf4ff264ab8"
+    },
+    {
+      "path": "server/assets/apple-touch-icon.png",
+      "bytes": 20513,
+      "sha256": "9f4b1b74cd55d6ad771ae2e139d25bbdd4172eaf94faf03ee2266abc76e941a7"
+    },
+    {
+      "path": "server/assets/favicon-16.png",
+      "bytes": 755,
+      "sha256": "47b16dacc3ea1fbb19f1106d04240483506ea4012ef8fda960f8b364f7ae9561"
+    },
+    {
+      "path": "server/assets/favicon-32.png",
+      "bytes": 1857,
+      "sha256": "f8cd7445433a2bb037684e8c55aab094919c3181f3a56b9104666553659f5aa2"
+    },
+    {
+      "path": "server/assets/favicon-48.png",
+      "bytes": 3165,
+      "sha256": "6d5c690edc02f6099f253f830d24c16128d22c2b23c07137240996dfa1a7afb2"
+    },
+    {
+      "path": "server/assets/favicon.ico",
+      "bytes": 65049,
+      "sha256": "cfe1374cc5b5b4581eba1ede392d353574a689129afbdf511c637b18872629ce"
+    },
+    {
+      "path": "server/assets/icon-128.png",
+      "bytes": 2686,
+      "sha256": "282eb5fd8d7d559869c9fec0091dfa8b56428bdcf47de6d601f97b97483057b0"
+    },
+    {
+      "path": "server/assets/icon-256.png",
+      "bytes": 4443,
+      "sha256": "7d66ada09d56189818d2ea9e902777b1a14351c6f4544561b5ab704b9323f809"
+    },
+    {
+      "path": "server/assets/icon-512.png",
+      "bytes": 137619,
+      "sha256": "e0de3b847ddbb279ebb59a50d65ff8e6e6ea51dd8c534d452936df76d5438065"
+    },
+    {
+      "path": "server/assets/icon.png",
+      "bytes": 137619,
+      "sha256": "e0de3b847ddbb279ebb59a50d65ff8e6e6ea51dd8c534d452936df76d5438065"
+    },
+    {
+      "path": "server/assets/login-icon-dark.png",
+      "bytes": 137619,
+      "sha256": "e0de3b847ddbb279ebb59a50d65ff8e6e6ea51dd8c534d452936df76d5438065"
+    },
+    {
+      "path": "server/assets/login-icon.png",
+      "bytes": 137619,
+      "sha256": "e0de3b847ddbb279ebb59a50d65ff8e6e6ea51dd8c534d452936df76d5438065"
+    },
+    {
+      "path": "server/assets/tg-192.png",
+      "bytes": 23049,
+      "sha256": "7ccb8f8a2fc5e0323668d962a38cd2d15bbb3d72cd80919efc5e16e7691606fb"
+    },
+    {
+      "path": "server/assets/tg-512.png",
+      "bytes": 137619,
+      "sha256": "e0de3b847ddbb279ebb59a50d65ff8e6e6ea51dd8c534d452936df76d5438065"
+    },
+    {
+      "path": "server/assets/tool-icon.png",
+      "bytes": 4618,
+      "sha256": "ab92f1b9bec7d17dea7962f1d7da3aa561892b12d957befc621df1ec46bf446e"
+    }
+  ]
+}

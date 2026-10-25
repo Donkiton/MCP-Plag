@@ -1,0 +1,19 @@
+{
+  "interface": {
+    "capabilities": [],
+    "category": "Other",
+    "defaultPrompt": null,
+    "developerName": "App developer",
+    "displayName": "tg",
+    "longDescription": "Личный Telegram: переписки, поиск, сообщения и несколько именованных аккаунтов.",
+    "shortDescription": "Личный Telegram: переписки, поиск, сообщения и несколько именованных аккаунтов."
+  },
+  "apps": "./.app.json",
+  "name": "dev-6adde97bd2a88191986f132cf6d4c496",
+  "version": "1.0.2",
+  "description": "Личный Telegram: переписки, поиск, сообщения и несколько именованных аккаунтов.",
+  "author": {
+    "name": "App developer"
+  },
+  "keywords": []
+}
