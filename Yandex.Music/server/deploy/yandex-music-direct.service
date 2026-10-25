@@ -1,0 +1,36 @@
+[Unit]
+Description=Direct private Yandex Music MCP with OAuth
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=ymmusic
+Group=ymmusic
+WorkingDirectory=/opt/yandex-music-mcp
+Environment=HOME=/var/lib/yandex-music-mcp
+Environment=PYTHONNOUSERSITE=1
+Environment=PYTHONDONTWRITEBYTECODE=1
+ExecStart=/opt/yandex-music-mcp/venv/bin/python /opt/yandex-music-mcp/direct_oauth.py
+Restart=on-failure
+RestartSec=10
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/yandex-music-mcp
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+CapabilityBoundingSet=
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+MemoryMax=192M
+MemoryHigh=128M
+CPUQuota=30%
+TasksMax=32
+LimitNOFILE=256
+
+[Install]
+WantedBy=multi-user.target

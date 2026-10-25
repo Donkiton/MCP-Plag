@@ -1,0 +1,6 @@
+{
+  "source_url": "https://files.pythonhosted.org/packages/ce/e0/3b264e5d8442d57c2668fe6b98eb3b4be6ea489a74d1faea190c964e54db/yandex_music-3.0.0.tar.gz",
+  "source_sha256": "a0fbb5c838726f2806af547a48e9dba315d2779b9273d5da8b4ef1749cac3320",
+  "wheel_sha256": "e14634255e8168a087e0b7aacf515079f5b505394a0b2b7c2f8f3359146d0d0b",
+  "build": "Pure Python modules copied byte-for-byte into wheel; legacy setup.py not executed; synchronous requirements from reviewed setup.py"
+}

@@ -1,0 +1,11 @@
+#!/bin/sh
+# Discovery stays small; SDK imports and music commands use the shared worker.
+exec /usr/bin/systemd-run --quiet --pipe --wait --collect --unit="ymmusic-stdio-$$" \
+  --property=User=ymmusic --property=Group=ymmusic \
+  --property=WorkingDirectory=/opt/yandex-music-mcp \
+  --property=UMask=0077 --property=NoNewPrivileges=true \
+  --property=PrivateTmp=true --property=ProtectSystem=strict --property=ProtectHome=true \
+  --property=MemoryMax=32M --property=MemoryHigh=24M --property=CPUQuota=10% \
+  --property=TasksMax=4 --property=LimitNOFILE=64 \
+  --setenv=PYTHONNOUSERSITE=1 --setenv=PYTHONDONTWRITEBYTECODE=1 \
+  /usr/bin/python3 /opt/yandex-music-mcp/lazy_stdio.py

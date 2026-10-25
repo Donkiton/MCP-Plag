@@ -1,0 +1,13 @@
+[Unit]
+Description=Private socket for the on-demand Yandex Music executor
+
+[Socket]
+ListenStream=/run/yandex-music-mcp-worker.sock
+SocketUser=ymmusic
+SocketGroup=ymmusic
+SocketMode=0600
+Backlog=32
+RemoveOnStop=yes
+
+[Install]
+WantedBy=sockets.target

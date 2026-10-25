@@ -1,0 +1,145 @@
+{
+  "snapshot_date": "2026-10-25",
+  "source": "Read-only snapshot of the owner deployment on VDSina; no runtime state included.",
+  "plugin": {
+    "version": "1.0.3",
+    "plugin_id": "plugin_asdk_app_6ac88e3d727c8191ab80ae2cf2fa5d54",
+    "release_id": "pluginrel_6ac8babeae3481918dd9630ce2c4c64f"
+  },
+  "upstream_package_version": "0.1.0",
+  "mcp_sdk_version": "1.30.0",
+  "music_tool_count": 14,
+  "http_auxiliary_tools": [
+    "get_profile"
+  ],
+  "files": [
+    {
+      "path": "server/client/adapter.py",
+      "snapshot_path": "adapter.py",
+      "sha256": "0117ad1607f5b27d6908b27f2c6c54b55f5bec678881de10ca5f9ffca50a7127"
+    },
+    {
+      "path": "server/authorize.py",
+      "snapshot_path": "authorize.py",
+      "sha256": "957c694aa2470c615f78965a2cd2b6a9aca2084973181767cb9d4050dcb954c9"
+    },
+    {
+      "path": "server/dependency-provenance.json",
+      "snapshot_path": "dependency-provenance.json",
+      "sha256": "5c71db5adc172df94ca33226c7a09bdeff4d58215d500e09beae6acab5e6d99b"
+    },
+    {
+      "path": "server/direct_oauth.py",
+      "snapshot_path": "direct_oauth.py",
+      "sha256": "cff528354470367a7d6241172e6b6e6eab780d2bc633e7f2c689c9a5297fcc8b"
+    },
+    {
+      "path": "server/export_catalog.py",
+      "snapshot_path": "export_catalog.py",
+      "sha256": "dcc4e0aadea5ce4bc04c6b89c27b5b95010f72ba0110acd022bb8bee11729f15"
+    },
+    {
+      "path": "server/idle_worker.py",
+      "snapshot_path": "idle_worker.py",
+      "sha256": "a7cb03510a361523f5d00ce2995cb5d17c118639badb04171415e723770062db"
+    },
+    {
+      "path": "server/lazy_stdio.py",
+      "snapshot_path": "lazy_stdio.py",
+      "sha256": "0eae72808f3ebf4a6f6ea2efb39c12cef00f30f5b7768610be09b96b051c1463"
+    },
+    {
+      "path": "server/music_catalog.json",
+      "snapshot_path": "music_catalog.json",
+      "sha256": "e981fcab7ce0717ebda50962be2ca6f8482a9c6b1b39a5b7b11139ef67eceb79"
+    },
+    {
+      "path": "server/oneshot.py",
+      "snapshot_path": "oneshot.py",
+      "sha256": "05cf75312b4efbe0363b59b7942634569574719c46b7e9e5180b69555e8e648b"
+    },
+    {
+      "path": "server/requirements.lock.txt",
+      "snapshot_path": "requirements.lock.txt",
+      "sha256": "8a1fcdcba53de923b1ce2c5cf8b3c90615586390cf0c05e5a4dfb71f91283ce4"
+    },
+    {
+      "path": "server/runtime.py",
+      "snapshot_path": "runtime.py",
+      "sha256": "aa8aa323e1d1dd8a93b6116607c283db27d561565df1dac0f68f90c572cde553"
+    },
+    {
+      "path": "server/deploy/yandex-music-direct.service",
+      "snapshot_path": "yandex-music-direct.service",
+      "sha256": "239ae0ae6524884800cefe2b5d01326ec0a094311dedfae1ed19f1e931640ae0"
+    },
+    {
+      "path": "server/deploy/yandex-music-mcp-once",
+      "snapshot_path": "yandex-music-mcp-once",
+      "sha256": "4ae67beff9471adb93a1b5c3c7a7bffa843bd309afcc2dc6308de72813649081"
+    },
+    {
+      "path": "server/deploy/yandex-music-mcp-ssh",
+      "snapshot_path": "yandex-music-mcp-ssh",
+      "sha256": "e6ccd53e340ce0c0281de5b3c9c7474b729ab0cda2ef15c40b90099f4a02692f"
+    },
+    {
+      "path": "server/deploy/yandex-music-mcp-worker.service",
+      "snapshot_path": "yandex-music-mcp-worker.service",
+      "sha256": "755227cf2f6c381510385e399ee3b535c3bf9f1f658ec15a72b49925b2ee1925"
+    },
+    {
+      "path": "server/deploy/yandex-music-mcp-worker.socket",
+      "snapshot_path": "yandex-music-mcp-worker.socket",
+      "sha256": "25a066ce81378a3ec3c7f7c8d13d5e4a0b71e73ebaa99d1d8bffb1cd36fba36f"
+    },
+    {
+      "path": "server/yandex-original-logo.png",
+      "snapshot_path": "yandex-original-logo.png",
+      "sha256": "fd9749085098a8cf656ddd7036912e2e7c5d4b7ed3919b431b5c9a6232404496"
+    },
+    {
+      "path": "server/downloads/yandex_music-3.0.0-py3-none-any.whl",
+      "snapshot_path": "yandex_music-3.0.0-py3-none-any.whl",
+      "sha256": "e14634255e8168a087e0b7aacf515079f5b505394a0b2b7c2f8f3359146d0d0b"
+    },
+    {
+      "path": "server/yandex_music_mcp/__init__.py",
+      "snapshot_path": "yandex_music_mcp/__init__.py",
+      "sha256": "838a78d1a93004729ce4fc1f1ade111a66d97269a81fac0c53e920dbedcd3a0c"
+    },
+    {
+      "path": "server/yandex_music_mcp/auth.py",
+      "snapshot_path": "yandex_music_mcp/auth.py",
+      "sha256": "0ab986948665f4b29527d73aae80c568b7b43e4d31c5b2985ecd02e5fbc61703"
+    },
+    {
+      "path": "server/yandex_music_mcp/server.py",
+      "snapshot_path": "yandex_music_mcp/server.py",
+      "sha256": "6b509a3760e50c2ed62774bfb2c15f3e6263072dc4b6328bf01720635bdeefd8"
+    },
+    {
+      "path": "plugin/.app.json",
+      "snapshot_path": "plugin/.app.json",
+      "sha256": "54f06a19ea17aa8fab480451899caafd5ff9b54ec33f99ee696bcebdbf3c7c5c"
+    },
+    {
+      "path": "plugin/.codex-plugin/plugin.json",
+      "snapshot_path": "plugin/.codex-plugin/plugin.json",
+      "sha256": "7bfd15bed7d7746ea78728fa2a1b22dcde2634ba390cf82297b4ff60e7ae4c14"
+    },
+    {
+      "path": "plugin/assets/yandex-icon-v103.png",
+      "snapshot_path": "plugin/assets/yandex-icon-v103.png",
+      "sha256": "d17b570ee9dd4ba532cf3f06910af53624d324f8257fd6b594396c900f92bb15"
+    },
+    {
+      "path": "plugin/plugin.json",
+      "snapshot_path": "plugin/plugin.json",
+      "sha256": "27cdf85af8bb51f8e47f7cbdfb1def68005dc1e45f48c0c38f56a08b4e323c6e"
+    }
+  ],
+  "adapted_files": {
+    "server/tests/test_idle_music.py": "Only imports and catalog lookup adapted to tests/ directory; test logic preserved."
+  }
+}

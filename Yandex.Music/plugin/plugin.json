@@ -1,0 +1,25 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "dev-6ac88e3d727c8191ab80ae2cf2fa5d54",
+  "version": "1.0.3",
+  "description": "MCP для поиска и создания плейлистов в Яндекс Музыке",
+  "author": {
+    "name": "App developer"
+  },
+  "extensions": {
+    "com.openai": {
+      "apps": "./.app.json",
+      "interface": {
+        "capabilities": [],
+        "category": "Other",
+        "developerName": "App developer",
+        "displayName": "Яндекс",
+        "longDescription": "MCP для поиска и создания плейлистов в Яндекс Музыке",
+        "shortDescription": "MCP для поиска и создания плейлистов в Яндекс Музыке",
+        "logo": "./assets/yandex-icon-v103.png",
+        "composerIcon": "./assets/yandex-icon-v103.png",
+        "brandColor": "#FC3F1D"
+      }
+    }
+  }
+}
