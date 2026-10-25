@@ -11,3 +11,8 @@
 # Preserve archived source bytes and their deployment SHA-256 values.
 Mail.ru/plugin/** -text
 Mail.ru/server/** -text
+
+# Preserve the exported Yandex Music plugin and server snapshot bytes.
+Yandex.Music/plugin/** -text whitespace=cr-at-eol
+Yandex.Music/server/** -text whitespace=cr-at-eol
+*.whl binary

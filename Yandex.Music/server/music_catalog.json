@@ -1,0 +1,438 @@
+{
+  "initialize": {
+    "protocolVersion": "2025-11-25",
+    "capabilities": {
+      "experimental": {},
+      "prompts": {
+        "listChanged": false
+      },
+      "resources": {
+        "subscribe": false,
+        "listChanged": false
+      },
+      "tools": {
+        "listChanged": false
+      }
+    },
+    "serverInfo": {
+      "name": "yandex-music",
+      "version": "1.30.0"
+    }
+  },
+  "protocols": [
+    "2024-11-05",
+    "2025-03-26",
+    "2025-06-18",
+    "2025-11-25"
+  ],
+  "tools/list": {
+    "tools": [
+      {
+        "name": "account_info",
+        "description": "Проверка подключения: логин, имя и статус подписки Плюс.",
+        "inputSchema": {
+          "properties": {},
+          "title": "account_infoArguments",
+          "type": "object"
+        },
+        "outputSchema": {
+          "additionalProperties": true,
+          "title": "account_infoDictOutput",
+          "type": "object"
+        },
+        "annotations": {
+          "readOnlyHint": true,
+          "openWorldHint": true
+        }
+      },
+      {
+        "name": "search",
+        "description": "Поиск по каталогу Яндекс Музыки. type сужает поиск; limit — сколько результатов в каждой категории.",
+        "inputSchema": {
+          "properties": {
+            "query": {
+              "title": "Query",
+              "type": "string"
+            },
+            "type": {
+              "default": "all",
+              "enum": [
+                "all",
+                "track",
+                "album",
+                "artist",
+                "playlist"
+              ],
+              "title": "Type",
+              "type": "string"
+            },
+            "limit": {
+              "default": 10,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          "required": [
+            "query"
+          ],
+          "title": "searchArguments",
+          "type": "object"
+        },
+        "outputSchema": {
+          "additionalProperties": true,
+          "title": "searchDictOutput",
+          "type": "object"
+        },
+        "annotations": {
+          "readOnlyHint": true,
+          "openWorldHint": true
+        }
+      },
+      {
+        "name": "get_liked_tracks",
+        "description": "Треки из «Мне нравится», от последних лайков к старым. Для анализа вкуса бери limit побольше (до 500).",
+        "inputSchema": {
+          "properties": {
+            "limit": {
+              "default": 50,
+              "title": "Limit",
+              "type": "integer"
+            },
+            "offset": {
+              "default": 0,
+              "title": "Offset",
+              "type": "integer"
+            }
+          },
+          "title": "get_liked_tracksArguments",
+          "type": "object"
+        },
+        "outputSchema": {
+          "additionalProperties": true,
+          "title": "get_liked_tracksDictOutput",
+          "type": "object"
+        },
+        "annotations": {
+          "readOnlyHint": true,
+          "openWorldHint": true
+        }
+      },
+      {
+        "name": "get_listening_history",
+        "description": "Недавно прослушанные треки (история прослушиваний), сгруппированные по дням.",
+        "inputSchema": {
+          "properties": {
+            "limit": {
+              "default": 50,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          "title": "get_listening_historyArguments",
+          "type": "object"
+        },
+        "outputSchema": {
+          "additionalProperties": true,
+          "title": "get_listening_historyDictOutput",
+          "type": "object"
+        },
+        "annotations": {
+          "readOnlyHint": true,
+          "openWorldHint": true
+        }
+      },
+      {
+        "name": "list_my_playlists",
+        "description": "Все мои плейлисты (kind — идентификатор плейлиста для других инструментов).",
+        "inputSchema": {
+          "properties": {},
+          "title": "list_my_playlistsArguments",
+          "type": "object"
+        },
+        "outputSchema": {
+          "properties": {
+            "result": {
+              "items": {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              "title": "Result",
+              "type": "array"
+            }
+          },
+          "required": [
+            "result"
+          ],
+          "title": "list_my_playlistsOutput",
+          "type": "object"
+        },
+        "annotations": {
+          "readOnlyHint": true,
+          "openWorldHint": true
+        }
+      },
+      {
+        "name": "get_playlist_tracks",
+        "description": "Треки плейлиста. По умолчанию — мой плейлист; owner_uid — для чужого публичного.",
+        "inputSchema": {
+          "properties": {
+            "kind": {
+              "title": "Kind",
+              "type": "integer"
+            },
+            "owner_uid": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Owner Uid"
+            },
+            "limit": {
+              "default": 200,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          "required": [
+            "kind"
+          ],
+          "title": "get_playlist_tracksArguments",
+          "type": "object"
+        },
+        "outputSchema": {
+          "additionalProperties": true,
+          "title": "get_playlist_tracksDictOutput",
+          "type": "object"
+        },
+        "annotations": {
+          "readOnlyHint": true,
+          "openWorldHint": true
+        }
+      },
+      {
+        "name": "get_album_tracks",
+        "description": "Информация об альбоме и его треклист.",
+        "inputSchema": {
+          "properties": {
+            "album_id": {
+              "title": "Album Id",
+              "type": "integer"
+            }
+          },
+          "required": [
+            "album_id"
+          ],
+          "title": "get_album_tracksArguments",
+          "type": "object"
+        },
+        "outputSchema": {
+          "additionalProperties": true,
+          "title": "get_album_tracksDictOutput",
+          "type": "object"
+        },
+        "annotations": {
+          "readOnlyHint": true,
+          "openWorldHint": true
+        }
+      },
+      {
+        "name": "get_artist_tracks",
+        "description": "Популярные треки артиста.",
+        "inputSchema": {
+          "properties": {
+            "artist_id": {
+              "title": "Artist Id",
+              "type": "integer"
+            },
+            "limit": {
+              "default": 20,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          "required": [
+            "artist_id"
+          ],
+          "title": "get_artist_tracksArguments",
+          "type": "object"
+        },
+        "outputSchema": {
+          "additionalProperties": true,
+          "title": "get_artist_tracksDictOutput",
+          "type": "object"
+        },
+        "annotations": {
+          "readOnlyHint": true,
+          "openWorldHint": true
+        }
+      },
+      {
+        "name": "get_similar_tracks",
+        "description": "Похожие треки по версии Яндекса (track_id в формате \"123\" или \"123:456\").",
+        "inputSchema": {
+          "properties": {
+            "track_id": {
+              "title": "Track Id",
+              "type": "string"
+            }
+          },
+          "required": [
+            "track_id"
+          ],
+          "title": "get_similar_tracksArguments",
+          "type": "object"
+        },
+        "outputSchema": {
+          "additionalProperties": true,
+          "title": "get_similar_tracksDictOutput",
+          "type": "object"
+        },
+        "annotations": {
+          "readOnlyHint": true,
+          "openWorldHint": true
+        }
+      },
+      {
+        "name": "get_my_wave",
+        "description": "Порция треков из «Моей волны» — персональных рекомендаций. batches — сколько порций (≈5 треков каждая).",
+        "inputSchema": {
+          "properties": {
+            "batches": {
+              "default": 1,
+              "title": "Batches",
+              "type": "integer"
+            }
+          },
+          "title": "get_my_waveArguments",
+          "type": "object"
+        },
+        "outputSchema": {
+          "additionalProperties": true,
+          "title": "get_my_waveDictOutput",
+          "type": "object"
+        },
+        "annotations": {
+          "readOnlyHint": true,
+          "openWorldHint": true
+        }
+      },
+      {
+        "name": "get_chart",
+        "description": "Текущий чарт Яндекс Музыки.",
+        "inputSchema": {
+          "properties": {
+            "limit": {
+              "default": 50,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          "title": "get_chartArguments",
+          "type": "object"
+        },
+        "outputSchema": {
+          "additionalProperties": true,
+          "title": "get_chartDictOutput",
+          "type": "object"
+        },
+        "annotations": {
+          "readOnlyHint": true,
+          "openWorldHint": true
+        }
+      },
+      {
+        "name": "create_playlist",
+        "description": "Создать новый приватный плейлист.",
+        "inputSchema": {
+          "properties": {
+            "title": {
+              "title": "Title",
+              "type": "string"
+            }
+          },
+          "required": [
+            "title"
+          ],
+          "title": "create_playlistArguments",
+          "type": "object"
+        },
+        "annotations": {
+          "readOnlyHint": false,
+          "destructiveHint": false,
+          "openWorldHint": true
+        }
+      },
+      {
+        "name": "add_tracks_to_playlist",
+        "description": "Добавить треки в любой собственный плейлист текущего аккаунта, новый или существующий. До 100 треков за вызов.",
+        "inputSchema": {
+          "properties": {
+            "kind": {
+              "title": "Kind",
+              "type": "integer"
+            },
+            "track_ids": {
+              "items": {
+                "type": "string"
+              },
+              "title": "Track Ids",
+              "type": "array"
+            },
+            "at_start": {
+              "default": false,
+              "title": "At Start",
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "kind",
+            "track_ids"
+          ],
+          "title": "add_tracks_to_playlistArguments",
+          "type": "object"
+        },
+        "annotations": {
+          "readOnlyHint": false,
+          "destructiveHint": false,
+          "openWorldHint": true
+        }
+      },
+      {
+        "name": "delete_playlist",
+        "description": "Удалить указанный плейлист текущего аккаунта по явному запросу пользователя. Любой собственный плейлист, включая «Понравилось на Радио», допускается к удалению.",
+        "inputSchema": {
+          "properties": {
+            "kind": {
+              "title": "Kind",
+              "type": "integer"
+            }
+          },
+          "required": [
+            "kind"
+          ],
+          "title": "delete_playlistArguments",
+          "type": "object"
+        },
+        "annotations": {
+          "readOnlyHint": false,
+          "destructiveHint": true,
+          "openWorldHint": true
+        }
+      }
+    ]
+  },
+  "resources/list": {
+    "resources": []
+  },
+  "resources/templates/list": {
+    "resourceTemplates": []
+  },
+  "prompts/list": {
+    "prompts": []
+  }
+}

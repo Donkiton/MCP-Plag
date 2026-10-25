@@ -1,0 +1,28 @@
+[Unit]
+Description=On-demand shared Yandex Music executor
+Requires=yandex-music-mcp-worker.socket
+After=yandex-music-mcp-worker.socket
+StartLimitIntervalSec=30
+StartLimitBurst=3
+
+[Service]
+Type=exec
+User=ymmusic
+Group=ymmusic
+WorkingDirectory=/opt/yandex-music-mcp
+ExecStart=/opt/yandex-music-mcp/venv/bin/python /opt/yandex-music-mcp/idle_worker.py
+Environment=PYTHONNOUSERSITE=1 PYTHONDONTWRITEBYTECODE=1
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/yandex-music-mcp
+MemoryHigh=128M
+MemoryMax=192M
+CPUQuota=30%
+TasksMax=32
+LimitNOFILE=256
+KillMode=control-group
+TimeoutStopSec=10
+Restart=no
