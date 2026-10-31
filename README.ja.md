@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="assets/readme/hero.svg" width="100%" alt="MCP-Plag：ChatGPT が MCP を通じて Mail.ru と Yandex Music に接続">
+  <img src="assets/readme/hero.svg" width="100%" alt="MCP-Plag：ChatGPT が MCP を通じて Mail.ru、Yandex Music、Telegram に接続">
 </p>
 
 <p align="center">
@@ -8,9 +8,9 @@
 
 # MCP-Plag
 
-**ChatGPT でメールと音楽を操作。自分で運用できるサーバーのソースコードも公開。**
+**ChatGPT でメール、音楽、Telegram を操作。自分で運用できるサーバーのソースコードも公開。**
 
-ChatGPT プラグインと MCP サーバーのコレクションです。パッケージ、コード、アイコン、導入手順、検証ツールをまとめています。Mail.ru と Yandex Music の 2 つの連携を収録しています。
+ChatGPT プラグインと MCP サーバーのコレクションです。パッケージ、コード、アイコン、導入手順、検証ツールをまとめています。Mail.ru、Yandex Music、Telegram の 3 つの連携を収録しています。
 
 ## 連携を選ぶ
 
@@ -18,6 +18,7 @@ ChatGPT プラグインと MCP サーバーのコレクションです。パッ�
 | --- | --- | --- |
 | **Mail / Mail.ru** | メールの検索・閲覧、下書き・添付ファイル・フォルダーの管理 | [概要](Mail.ru/README.md) · [アーカイブ](Mail.ru/releases/) |
 | **Yandex Music** | 楽曲の検索、おすすめの取得、自分のプレイリストの管理 | [概要](Yandex.Music/README.md) · [アーカイブ](Yandex.Music/releases/) |
+| **@tg / Telegram** | メッセージの閲覧・検索、名前付きアカウントの選択。実アカウントの初回ログインは未確認 | [概要](Telegram/README.md) · [アーカイブ](Telegram/releases/) · [状況](Telegram/STATUS.md) |
 
 ### Mail：メールから返信の下書きへ
 
@@ -45,7 +46,7 @@ ChatGPT プラグインと MCP サーバーのコレクションです。パッ�
 
 公開パッケージ内の識別子は作者の環境に紐付いています。ZIP のコピーだけでは独立した連携は作成されません。現在のサーバーは **VDSina** 上で稼働しています。別の VPS/VDS や、外部からアクセスできる HTTPS アドレスを持つマシンにも導入できます。Yandex Music には SSH 接続モードも含まれています。
 
-[Mail の導入手順](Mail.ru/server/README.md) · [Yandex Music の導入手順](Yandex.Music/server/README.md)
+[Mail の導入手順](Mail.ru/server/README.md) · [Yandex Music の導入手順](Yandex.Music/server/README.md) · [@tg の導入手順](Telegram/server/README.md)
 
 ## データとアクセス範囲
 
@@ -61,6 +62,7 @@ Mail の添付ファイル制限、認証の条件、検証方法は各連携の
 ```text
 Mail.ru/           Mail プラグイン、MCP サーバー、テスト、ZIP
 Yandex.Music/      Yandex Music プラグイン、MCP サーバー、ZIP
+Telegram/          @tg プラグイン、MCP サーバー、アイコン、テスト、ZIP
 assets/readme/     編集可能な SVG 接続図
 README*.md        5 言語のプロジェクト紹介
 ```
@@ -72,6 +74,8 @@ python Mail.ru/tools/build_releases.py
 python Mail.ru/tools/verify_package.py
 python Yandex.Music/tools/build_releases.py
 python Yandex.Music/tools/verify_package.py
+python Telegram/tools/build_releases.py
+python Telegram/tools/verify_package.py
 ```
 
 各連携のディレクトリにテスト手順とバージョン情報があります。アーカイブの構築に、実際のメールへのアクセスや音楽プレイリストの変更は必要ありません。詳しい連携手順は現在ロシア語で提供しています。

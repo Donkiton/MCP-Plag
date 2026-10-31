@@ -1,0 +1,5 @@
+{
+  "_comment": "Phase 2.0 parity baseline. Each name is an upstream tool not yet exposed in cloud whitelist and not in EXPLICIT_EXCLUDED. CI fails on (a) new drift = upstream additions not in this list, (b) resolved-pending = entries here that have since been exposed or excluded but not removed from baseline. As Phase 2 waves ship, names move out of `pending` into either cloud whitelist or EXPLICIT_EXCLUDED (with reason).",
+  "_generated": "Phase X FS-upload path shipped (cloud v2.15.0) — 6 FS-bound media tools (telegram-send-file/voice/video-note/album/story + telegram-set-profile-photo) moved out of EXPLICIT_EXCLUDED into the whitelist. Bytes flow via cookie-authenticated multipart upload to /my/upload OR SSRF-protected https:// URL fetch — no filesystem path ever crosses the LLM tool boundary. EXPLICIT_EXCLUDED is now down to the 3 OAuth/session-lifecycle tools that are concept-incompatible with a shared HTTP server.",
+  "pending": []
+}

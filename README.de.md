@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="assets/readme/hero.svg" width="100%" alt="MCP-Plag: ChatGPT verbindet sich über MCP mit Mail.ru und Yandex Music">
+  <img src="assets/readme/hero.svg" width="100%" alt="MCP-Plag: ChatGPT verbindet sich über MCP mit Mail.ru, Yandex Music und Telegram">
 </p>
 
 <p align="center">
@@ -8,9 +8,9 @@
 
 # MCP-Plag
 
-**E-Mail und Musik in ChatGPT – mit Servercode für den eigenen Betrieb.**
+**E-Mail, Musik und Telegram in ChatGPT – mit Servercode für den eigenen Betrieb.**
 
-Eine Sammlung von ChatGPT-Plugins und ihren MCP-Servern: fertige Pakete, Quellcode, Symbole, Anleitungen und Prüfwerkzeuge. Das Repository enthält zwei Integrationen: Mail.ru und Yandex Music.
+Eine Sammlung von ChatGPT-Plugins und ihren MCP-Servern: fertige Pakete, Quellcode, Symbole, Anleitungen und Prüfwerkzeuge. Das Repository enthält drei Integrationen: Mail.ru, Yandex Music und Telegram.
 
 ## Integration auswählen
 
@@ -18,6 +18,7 @@ Eine Sammlung von ChatGPT-Plugins und ihren MCP-Servern: fertige Pakete, Quellco
 | --- | --- | --- |
 | **Mail / Mail.ru** | E-Mails suchen und lesen; Entwürfe, Anhänge und Ordner verwalten | [Übersicht](Mail.ru/README.md) · [Archive](Mail.ru/releases/) |
 | **Yandex Music** | Musik suchen, Empfehlungen abrufen und eigene Playlists verwalten | [Übersicht](Yandex.Music/README.md) · [Archive](Yandex.Music/releases/) |
+| **@tg / Telegram** | Nachrichten lesen und suchen, benannte Konten auswählen; erste echte Anmeldung steht noch aus | [Übersicht](Telegram/README.md) · [Archive](Telegram/releases/) · [Status](Telegram/STATUS.md) |
 
 ### Mail: von der Nachricht zum Antwortentwurf
 
@@ -45,7 +46,7 @@ Die Verbindung folgt dem Weg **ChatGPT → MCP-Server → ausgewählter Dienst**
 
 Die Kennungen in den veröffentlichten Paketen gehören zur Installation des Autors. Das Kopieren einer ZIP-Datei erstellt noch keine eigenständige Integration. Die aktuellen Server laufen bei **VDSina**. Eine eigene Instanz kann auch auf einem anderen VPS/VDS oder einem Rechner mit erreichbarer HTTPS-Adresse betrieben werden. Yandex Music enthält außerdem einen SSH-Verbindungsmodus.
 
-[Mail bereitstellen](Mail.ru/server/README.md) · [Yandex Music bereitstellen](Yandex.Music/server/README.md)
+[Mail bereitstellen](Mail.ru/server/README.md) · [Yandex Music bereitstellen](Yandex.Music/server/README.md) · [@tg bereitstellen](Telegram/server/README.md)
 
 ## Daten und Zugriffsgrenzen
 
@@ -61,6 +62,7 @@ Größenlimits für Mail-Anhänge, Autorisierungsbedingungen und Prüfverfahren 
 ```text
 Mail.ru/           Mail-Plugin, MCP-Server, Tests und ZIP-Dateien
 Yandex.Music/      Yandex-Music-Plugin, MCP-Server und ZIP-Dateien
+Telegram/          @tg-Plugin, MCP-Server, Symbole, Tests und ZIP-Dateien
 assets/readme/     Editierbare SVG-Verbindungsgrafik
 README*.md        Projektbeschreibungen in fünf Sprachen
 ```
@@ -72,6 +74,8 @@ python Mail.ru/tools/build_releases.py
 python Mail.ru/tools/verify_package.py
 python Yandex.Music/tools/build_releases.py
 python Yandex.Music/tools/verify_package.py
+python Telegram/tools/build_releases.py
+python Telegram/tools/verify_package.py
 ```
 
 Die Integrationsverzeichnisse enthalten Testanleitungen und Versionsangaben. Das Erstellen der Archive benötigt weder Zugriff auf echte E-Mails noch Änderungen an Musikplaylists. Die ausführlichen Integrationsanleitungen sind derzeit auf Russisch verfügbar.

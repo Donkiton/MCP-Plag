@@ -1,0 +1,48 @@
+{
+  "name": "tg-mcp",
+  "version": "0.1.0",
+  "private": true,
+  "license": "MIT",
+  "type": "module",
+  "engines": {
+    "bun": ">=1.3.14"
+  },
+  "scripts": {
+    "dev": "bun --hot src/server.tsx",
+    "start": "bun src/server.tsx",
+    "build": "tsc --noEmit",
+    "typecheck": "tsc --noEmit",
+    "test": "bun test --parallel ./src/__tests__/",
+    "check-parity": "bun scripts/check-parity.ts",
+    "check-telemetry": "bun scripts/check-telemetry.ts",
+    "check-traefik-parity": "bun scripts/check-traefik-parity.ts",
+    "lint": "biome check src/ scripts/",
+    "lint:fix": "biome check --write src/ scripts/",
+    "format": "biome format --write src/ scripts/"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.32.1",
+    "@overpod/mcp-telegram": "^1.43.6",
+    "dotenv": "^18.0.7",
+    "hono": "^4.13.13",
+    "qrcode": "^1.5.4",
+    "telegram": "^2.26.22",
+    "zod": "^4.6.7"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^2.5.15",
+    "@types/bun": "^1.4.3",
+    "@types/node": "^26.6.5",
+    "@types/qrcode": "^1.5.6",
+    "husky": "^9.1.7",
+    "typescript": "^7.0.2"
+  },
+  "overrides": {
+    "fast-uri": ">=3.1.8",
+    "ip-address": ">=10.7.3",
+    "nanoid": ">=3.3.18",
+    "postcss": ">=8.5.23",
+    "@hono/node-server": ">=1.19.15",
+    "body-parser": ">=2.3.0"
+  }
+}

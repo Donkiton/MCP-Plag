@@ -1,0 +1,32 @@
+# Publish the backend source used by @tg, not unused upstream workspaces.
+/server/*
+!/server/src/
+!/server/assets/
+!/server/scripts/
+!/server/docs/
+!/server/tests/
+!/server/deploy/
+!/server/package.json
+!/server/bun.lock
+!/server/tsconfig.json
+!/server/README.md
+!/server/LICENSE
+!/server/CHANGELOG.md
+!/server/.env.example
+!/server/biome.json
+
+# Runtime/cache directories remain private even under an allowed source tree.
+node_modules/
+__pycache__/
+*.py[cod]
+.env
+.env.*
+!.env.example
+*.db
+*.db-*
+*.sqlite*
+*.log
+*.key
+*.pem
+*.bak
+*.backup

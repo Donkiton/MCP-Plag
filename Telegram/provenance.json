@@ -1,0 +1,43 @@
+{
+  "integration": "tg",
+  "version": "0.1.0",
+  "date": "2026-10-25",
+  "hosting": "Self-hosted on the owner's VDSina server",
+  "endpoint": "https://tg-77-238-249-144.sslip.io/mcp",
+  "cloud_upstream": {
+    "repository": "https://github.com/mcp-telegram/mcp-telegram-cloud",
+    "commit": "d2548becf2a124481313635b6c6d888cd3903fe3",
+    "version": "2.63.3",
+    "license": "MIT",
+    "local_source": "server/",
+    "modifications": "Personal branding, explicit account routing, named primary/secondary accounts, browser setup and client revocation isolation; see CHANGELOG.md and source."
+  },
+  "telegram_core": {
+    "repository": "https://github.com/mcp-telegram/mcp-telegram",
+    "docker_source_commit": "a11e9a91db6b11ec50f5d4abb6a9377b887254ee",
+    "license": "MIT",
+    "note": "The exact dependency resolution used for installation is recorded by server/bun.lock and the deployment receipt. Do not equate the Docker source pin with an independently verified installed npm revision."
+  },
+  "chigwell": {
+    "repository": "https://github.com/chigwell/telegram-mcp",
+    "license": "Apache-2.0",
+    "usage": "Compared as a feature and account-routing reference. This record does not claim the complete chigwell catalogue is included. Preserve required notices if implementation code is subsequently ported."
+  },
+  "branding": {
+    "generator": "Built-in ImageGen",
+    "approved_variant": "A, circular blue paper-plane mark",
+    "asset_manifest": "app-assets/manifest.json",
+    "master": "app-assets/tg-master.png",
+    "approval": "The user selected the round variant before implementation."
+  },
+  "app_registration": {
+    "status": "registered_private",
+    "app_id": "asdk_app_6adde97bd2a88191986f132cf6d4c496",
+    "plugin_id": "plugin_asdk_app_6adde97bd2a88191986f132cf6d4c496",
+    "version": "1.0.2",
+    "custom_icon": "app-assets/tg-256.png",
+    "note": "Real App binding was read back after registration and updates. The App-backed package contains only the binding and two manifests. It belongs to the author; self-hosters must register their own App."
+  },
+  "publication": "GitHub publication explicitly authorized by the owner on 2026-10-25; submitted through a pull request.",
+  "verification_status": "See STATUS.md for tests, deployment evidence and checks still waiting for the first Telegram login."
+}
